@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>スケジュール・納期管理 | 製造管理</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+.gantt-wrap{overflow-x:auto}
+.gantt-tbl{border-collapse:collapse;font-size:11px;min-width:max-content}
+.gantt-tbl th,.gantt-tbl td{border:0.5px solid var(--border)}
+.g-label{padding:4px 8px;width:140px;min-width:140px;background:var(--bg2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}
+.g-day{width:26px;min-width:26px;text-align:center;font-size:10px;padding:3px 0;color:var(--text2)}
+.g-day.today{background:var(--info-bg);color:var(--info);font-weight:500}
+.g-day.sat{color:var(--info)}.g-day.sun{color:var(--danger)}
+.g-cell{width:26px;min-width:26px;height:26px;position:relative;padding:0}
+.g-bar{position:absolute;top:5px;bottom:5px;border-radius:2px}
+.g-due{position:absolute;top:0;bottom:0;left:11px;width:2px;background:var(--danger)}
+</style>
+</head>
+<body>
+<script src="js/nav.js"></script>
+<div class="page">
+  <div id="alert-zone" style="margin-bottom:1rem"></div>
+  <div class="g4" style="margin-bottom:1rem">
+    <div class="stat"><div class="sv" id="s0">0</div><div class="sl">総受注件数</div></div>
+    <div class="stat"><div class="sv" id="s1" style="color:var(--info)">0</div><div class="sl">進行中</div></div>
+    <div class="stat"><div class="sv" id="s2" style="color:var(--danger)">0</div><div class="sl">納期超過</div></div>
+    <div class="stat"><div class="sv" id="s3" style="color:var(--warn)">0</div><div class="sl">3日以内に納期</div></div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('order',this)">受注登録</button>
+    <button class="tab" onclick="switchTab('gantt',this);renderGantt()">ガントチャート</button>
+    <button class="tab" onclick="switchTab('list',this);renderList()">受注一覧</button>
+    <button class="tab" id="dtab" style="display:none" onclick="switchTab('detail',this)">工程詳細</button>
+  </div>
+  <div id="panel-order" class="panel show">
+    <div class="card">
+      <div class="sec">受注登録</div>
+      <div class="g3">
+        <div class="f"><label>受注番号<span class="req">*</span></label><input type="text" id="on" placeholder="ORD-2026-001"></div>
+        <div class="f"><label>顧客名<span class="req">*</span></label><input type="text" id="oc" placeholder="〇〇株式会社"></div>
+        <div class="f"><label>製品名<span class="req">*</span></label><input type="text" id="op" placeholder="部品A"></div>
+      </div>
+      <div class="g3">
+        <div class="f"><label>数量</label><input type="number" id="oq" placeholder="0" min="0"></div>
+        <div class="f"><label>受注日<span class="req">*</span></label><input type="date" id="od"></div>
+        <div class="f"><label>納期<span class="req">*</span></label><input type="date" id="odue"></div>
+      </div>
+      <div class="g3">
+        <div class="f"><label>優先度</label><select id="opri"><option value="通常">通常</option><option value="高">高</option><option value="緊急">緊急</option><option value="低">低</option></select></div>
+        <div class="f"><label>担当者</label><input type="text" id="oper" placeholder="氏名"></div>
+        <div class="f"><label>ライン割当</label><input type="text" id="oline" placeholder="例：Aライン"></div>
+      </div>
+      <div class="f" style="margin-bottom:12px"><label>備考</label><textarea id="omemo"></textarea></div>
+      <div class="sec">工程スケジュール</div>
+      <div id="step-inputs"></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px"><button class="btn" onclick="addStepRow()">+ 工程追加</button></div>
+      <div class="btn-row"><button class="btn btn-p" onclick="addOrder()">受注登録</button><button class="btn" onclick="clearForm()">クリア</button></div>
+      <div class="errmsg" id="oerr"></div>
+    </div>
+  </div>
+  <div id="panel-gantt" class="panel">
+    <div class="card">
+      <div class="sec">ガントチャート</div>
+      <div class="frow">
+        <select id="gf" onchange="renderGantt()"><option value="">全受注</option><option>進行中</option><option>完了</option><option>未着手</option><option>納期超過</option></select>
+        <select id="gr" onchange="renderGantt()"><option value="14">14日</option><option value="30" selected>30日</option><option value="60">60日</option></select>
+      </div>
+      <div class="gantt-wrap" id="gwrap"><div class="empty-hint">受注を登録するとガントチャートが表示されます。</div></div>
+    </div>
+  </div>
+  <div id="panel-list" class="panel">
+    <div class="card">
+      <div class="sec">受注一覧</div>
+      <div class="frow">
+        <select id="lsst" onchange="renderList()"><option value="">全ステータス</option><option>未着手</option><option>進行中</option><option>完了</option><option>納期超過</option></select>
+        <select id="lspri" onchange="renderList()"><option value="">全優先度</option><option>緊急</option><option>高</option><option>通常</option><option>低</option></select>
+        <input type="text" id="lsq" placeholder="受注番号 / 顧客 / 製品" oninput="renderList()" style="flex:1;min-width:100px">
+        <button class="btn" onclick="exportCSV()">CSV出力 ↓</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th style="width:92px">受注番号</th><th style="width:88px">顧客</th><th style="width:80px">製品</th><th style="width:48px">数量</th><th style="width:80px">納期</th><th style="width:64px">残り</th><th style="width:56px">優先度</th><th style="width:80px">進捗</th><th style="width:72px">状態</th><th style="width:72px">操作</th></tr></thead>
+          <tbody id="ltbody"></tbody>
+        </table>
+        <div id="lempty" class="empty-hint">受注がありません。</div>
+      </div>
+    </div>
+  </div>
+  <div id="panel-detail" class="panel"><div id="dcontent"></div></div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+let orders=loadKey('sd_orders')||[]; let sc=0;
+const DEFAULT_STEPS=['受注確認','材料調達','加工・製造','検査・品質確認','梱包','出荷'];
+const PCOL={緊急:'#E24B4A',高:'#BA7517',通常:'#378ADD',低:'#888780'};
+const SCOL=['#7F77DD','#1D9E75','#378ADD','#BA7517','#D85A30','#D4537E'];
+const SBADGE={未着手:'b-gray',進行中:'b-blu',完了:'b-grn',納期超過:'b-red'};
+const PBADGE={緊急:'b-red',高:'b-amb',通常:'b-blu',低:'b-gray'};
+
+document.getElementById('od').value=tod();
+
+function cst(o){if(o.status==='完了')return '完了';if(dd(o.due)<0)return '納期超過';if(o.steps&&o.steps.some(s=>s.status==='進行中'||s.status==='完了'))return '進行中';return '未着手';}
+function cprog(o){if(!o.steps||!o.steps.length)return o.progress||0;return Math.round(o.steps.filter(s=>s.status==='完了').length/o.steps.length*100);}
+
+function initSteps(){sc=0;document.getElementById('step-inputs').innerHTML='';DEFAULT_STEPS.forEach(n=>addStepRow(n));}
+function addStepRow(name=''){const i=sc++;const div=document.createElement('div');div.id='sr'+i;div.style.cssText='display:grid;grid-template-columns:1fr 1fr 1fr 36px;gap:8px;margin-bottom:8px;align-items:end';div.innerHTML=`<div class="f"><label>工程名</label><input id="sn${i}" value="${name}" placeholder="工程名" style="font-size:13px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%"></div><div class="f"><label>開始予定日</label><input type="date" id="ss${i}" style="font-size:13px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%"></div><div class="f"><label>完了予定日</label><input type="date" id="se${i}" style="font-size:13px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%"></div><button class="btn btn-d" style="padding:6px 8px" onclick="document.getElementById('sr${i}').remove()">✕</button>`;document.getElementById('step-inputs').appendChild(div);}
+function collectSteps(){const s=[];for(let i=0;i<sc;i++){const el=document.getElementById('sn'+i);if(!el||!el.closest('#step-inputs'))continue;const n=el.value.trim();if(!n)continue;s.push({name:n,start:document.getElementById('ss'+i).value,end:document.getElementById('se'+i).value,status:'未着手',progress:0,person:'',note:''});}return s;}
+
+function addOrder(){
+  const no=document.getElementById('on').value.trim(),cl=document.getElementById('oc').value.trim(),pr=document.getElementById('op').value.trim(),od=document.getElementById('od').value,due=document.getElementById('odue').value;
+  if(!no||!cl||!pr||!od||!due){document.getElementById('oerr').textContent='必須項目を入力してください。';return;}
+  if(orders.find(o=>o.no===no)){document.getElementById('oerr').textContent='同じ受注番号が既に存在します。';return;}
+  document.getElementById('oerr').textContent='';
+  orders.unshift({id:Date.now(),no,client:cl,product:pr,qty:parseInt(document.getElementById('oq').value)||0,ordered:od,due,priority:document.getElementById('opri').value,person:document.getElementById('oper').value.trim(),line:document.getElementById('oline').value.trim(),memo:document.getElementById('omemo').value.trim(),steps:collectSteps(),status:'未着手',progress:0,createdAt:new Date().toLocaleString('ja-JP')});
+  saveKey('sd_orders',orders);updateAll();clearForm();
+}
+function clearForm(){['on','oc','op','oq','oper','oline','omemo'].forEach(id=>document.getElementById(id).value='');document.getElementById('od').value=tod();document.getElementById('odue').value='';document.getElementById('opri').value='通常';document.getElementById('oerr').textContent='';initSteps();}
+
+function renderAlerts(){
+  const ov=orders.filter(o=>cst(o)==='納期超過'),sn=orders.filter(o=>{const d=dd(o.due);return d>=0&&d<=3&&cst(o)!=='完了';});
+  let h='';
+  if(ov.length)h+=`<div class="alert danger"><span class="alert-icon">!</span><div><strong>納期超過 ${ov.length}件</strong><br><span style="font-size:12px">${ov.map(o=>o.no+' '+o.client).join('、')}</span></div></div>`;
+  if(sn.length)h+=`<div class="alert warn"><span class="alert-icon">!</span><div><strong>3日以内に納期 ${sn.length}件</strong><br><span style="font-size:12px">${sn.map(o=>o.no+'（残り'+dd(o.due)+'日）').join('、')}</span></div></div>`;
+  document.getElementById('alert-zone').innerHTML=h;
+}
+function renderStats(){const sts=orders.map(o=>cst(o));document.getElementById('s0').textContent=orders.length;document.getElementById('s1').textContent=sts.filter(s=>s==='進行中').length;document.getElementById('s2').textContent=sts.filter(s=>s==='納期超過').length;document.getElementById('s3').textContent=orders.filter(o=>{const d=dd(o.due);return d>=0&&d<=3&&cst(o)!=='完了';}).length;}
+
+function renderGantt(){
+  const filt=document.getElementById('gf').value,range=parseInt(document.getElementById('gr').value)||30;
+  let list=orders.filter(o=>!filt||cst(o)===filt);
+  const wrap=document.getElementById('gwrap');
+  if(!list.length){wrap.innerHTML='<div class="empty-hint">表示する受注がありません。</div>';return;}
+  const todStr=tod();const start=new Date();start.setDate(start.getDate()-2);
+  const days=[];for(let i=0;i<range;i++){const d=new Date(start);d.setDate(start.getDate()+i);days.push(d.toISOString().slice(0,10));}
+  const BCOL={未着手:'#B4B2A9',進行中:'#378ADD',完了:'#1D9E75',納期超過:'#E24B4A'};
+  let h=`<table class="gantt-tbl"><thead><tr><th class="g-label">受注 / 工程</th>`;
+  days.forEach(d=>{const dt=new Date(d);const dw=dt.getDay();const lbl=(dt.getDate()===1||d===days[0])?`${dt.getMonth()+1}/${dt.getDate()}`:dt.getDate();const cls=d===todStr?' today':dw===6?' sat':dw===0?' sun':'';h+=`<th class="g-day${cls}">${lbl}</th>`;});
+  h+='</tr></thead><tbody>';
+  list.forEach(o=>{
+    const st=cst(o);const prog=cprog(o);
+    h+=`<tr style="cursor:pointer" onclick="openDetail(${o.id})"><td class="g-label"><div style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:${PCOL[o.priority]};display:inline-block;flex-shrink:0"></span><span style="font-weight:500">${o.no}</span></div><div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis">${o.client}</div></td>`;
+    days.forEach(d=>{
+      let bar='';
+      if(o.due&&d===o.due)bar+=`<div class="g-due"></div>`;
+      if(o.ordered&&o.due&&d>=o.ordered&&d<=o.due){const isS=d===o.ordered,isE=d===o.due;const bc=BCOL[st]||'#888';bar+=`<div class="g-bar" style="left:${isS?3:0}px;right:${isE?3:0}px;background:${bc};opacity:.3"></div>`;if(prog>0){const total=new Date(o.due)-new Date(o.ordered);const pe=new Date(o.ordered);pe.setTime(pe.getTime()+total*(prog/100));if(d<=pe.toISOString().slice(0,10))bar+=`<div class="g-bar" style="left:${isS?3:0}px;background:${bc};opacity:.85;right:${d===pe.toISOString().slice(0,10)?3:0}px"></div>`;}}
+      h+=`<td class="g-cell" style="${d===todStr?'background:rgba(55,138,221,.08)':''}">${bar}</td>`;
+    });
+    h+='</tr>';
+    (o.steps||[]).forEach((s,si)=>{if(!s.start&&!s.end)return;const sc2=SCOL[si%SCOL.length];h+=`<tr><td class="g-label" style="padding-left:18px;font-size:10px;color:var(--text2)">${s.name}</td>`;days.forEach(d=>{let bar='';if(s.start&&s.end&&d>=s.start&&d<=s.end){const isS=d===s.start,isE=d===s.end;bar=`<div class="g-bar" style="left:${isS?3:0}px;right:${isE?3:0}px;background:${sc2};opacity:${s.status==='完了'?.9:.45}"></div>`;}h+=`<td class="g-cell">${bar}</td>`;});h+='</tr>';});
+  });
+  h+='</tbody></table>';wrap.innerHTML=h;
+}
+
+function renderList(){
+  const fs=document.getElementById('lsst').value,fp=document.getElementById('lspri').value,fq=document.getElementById('lsq').value.toLowerCase();
+  const po={緊急:0,高:1,通常:2,低:3};
+  const filtered=orders.filter(o=>(!fs||cst(o)===fs)&&(!fp||o.priority===fp)&&(!fq||o.no.toLowerCase().includes(fq)||o.client.toLowerCase().includes(fq)||o.product.toLowerCase().includes(fq))).sort((a,b)=>(po[a.priority]||2)-(po[b.priority]||2)||a.due.localeCompare(b.due));
+  document.getElementById('lempty').style.display=filtered.length?'none':'block';
+  document.getElementById('ltbody').innerHTML=filtered.map(o=>{const st=cst(o);const prog=cprog(o);const d=dd(o.due);const dStr=st==='完了'?'完了':d<0?`超過${Math.abs(d)}日`:`残り${d}日`;const dCol=st==='完了'?'var(--success)':d<0?'var(--danger)':d<=3?'var(--warn)':'var(--text)';return `<tr><td style="font-size:11px;font-weight:500">${o.no}</td><td style="font-size:11px">${o.client}</td><td style="font-size:11px">${o.product}</td><td style="text-align:right">${o.qty||'—'}</td><td>${o.due}</td><td style="color:${dCol};font-size:11px;font-weight:500">${dStr}</td><td><span class="badge ${PBADGE[o.priority]||'b-gray'}">${o.priority}</span></td><td><div style="display:flex;align-items:center;gap:5px"><div class="prog-wrap" style="flex:1"><div class="prog-fill" style="width:${prog}%;background:${prog===100?'#1D9E75':'#378ADD'}"></div></div><span style="font-size:11px;min-width:28px;text-align:right">${prog}%</span></div></td><td><span class="badge ${SBADGE[st]||'b-gray'}">${st}</span></td><td style="display:flex;gap:4px"><button class="exbtn" onclick="openDetail(${o.id})">詳細</button><button class="btn btn-d" style="font-size:10px;padding:2px 6px" onclick="delOrder(${o.id})">削除</button></td></tr>`;}).join('');
+}
+
+function openDetail(id){document.getElementById('dtab').style.display='';switchTab('detail',document.getElementById('dtab'));renderDetail(id);}
+function renderDetail(id){
+  const o=orders.find(x=>x.id===id);if(!o){document.getElementById('dcontent').innerHTML='<div class="card">受注が見つかりません。</div>';return;}
+  const st=cst(o);const prog=cprog(o);
+  document.getElementById('dcontent').innerHTML=`<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div><div style="font-size:15px;font-weight:500">${o.no} — ${o.client}</div><div style="font-size:12px;color:var(--text2);margin-top:2px">${o.product}${o.qty?' × '+o.qty:''} ／ 納期：${o.due} ／ 担当：${o.person||'—'} ／ ライン：${o.line||'—'}</div></div>
+      <div style="display:flex;gap:6px"><span class="badge ${PBADGE[o.priority]||'b-gray'}">${o.priority}</span><span class="badge ${SBADGE[st]||'b-gray'}">${st}</span></div>
+    </div>
+    <div style="margin-bottom:14px"><div style="font-size:11px;color:var(--text2);margin-bottom:4px">全体進捗 ${prog}%</div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="height:100%;width:${prog}%;background:${prog===100?'#1D9E75':'#378ADD'};border-radius:4px;transition:width .4s"></div></div></div>
+    <div class="sec">工程別進捗</div>
+    ${(o.steps||[]).map((s,i)=>{const sc2=SCOL[i%SCOL.length];return `<div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:7px"><span style="width:10px;height:10px;border-radius:50%;background:${sc2};display:inline-block;flex-shrink:0"></span><span style="font-size:13px;font-weight:500">${s.name}</span><span style="font-size:11px;color:var(--text2)">${s.start||'—'} 〜 ${s.end||'—'}</span></div>
+        <select style="font-size:12px;padding:3px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text)" onchange="updSt(${id},${i},this.value)"><option ${s.status==='未着手'?'selected':''}>未着手</option><option ${s.status==='進行中'?'selected':''}>進行中</option><option ${s.status==='完了'?'selected':''}>完了</option><option ${s.status==='保留'?'selected':''}>保留</option></select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="f"><label>担当者</label><input value="${s.person||''}" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%" onchange="updF(${id},${i},'person',this.value)" placeholder="氏名"></div>
+        <div class="f"><label>進捗率 <span id="spv${id}_${i}">${s.progress||0}</span>%</label><input type="range" min="0" max="100" step="5" value="${s.progress||0}" style="width:100%" oninput="updP(${id},${i},this.value)"></div>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:8px"><div id="spb${id}_${i}" style="height:100%;width:${s.progress||0}%;background:${sc2};border-radius:3px"></div></div>
+      <div class="f"><label>メモ</label><input value="${s.note||''}" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%" onchange="updF(${id},${i},'note',this.value)" placeholder="問題点・備考"></div>
+    </div>`;}).join('')}
+  </div>`;
+}
+function updSt(oid,si,val){const o=orders.find(x=>x.id===oid);if(!o)return;o.steps[si].status=val;if(val==='完了')o.steps[si].progress=100;if(o.steps.every(s=>s.status==='完了'))o.status='完了';else if(o.steps.some(s=>s.status==='進行中'||s.status==='完了'))o.status='進行中';saveKey('sd_orders',orders);updateAll();renderDetail(oid);}
+function updP(oid,si,val){const o=orders.find(x=>x.id===oid);if(!o)return;o.steps[si].progress=parseInt(val);const v=document.getElementById('spv'+oid+'_'+si);if(v)v.textContent=val;const b=document.getElementById('spb'+oid+'_'+si);if(b)b.style.width=val+'%';o.progress=Math.round(o.steps.reduce((a,s)=>a+(s.progress||0),0)/o.steps.length);saveKey('sd_orders',orders);renderStats();renderAlerts();}
+function updF(oid,si,field,val){const o=orders.find(x=>x.id===oid);if(!o)return;o.steps[si][field]=val;saveKey('sd_orders',orders);}
+function delOrder(id){if(!confirm('削除しますか？'))return;orders=orders.filter(o=>o.id!==id);saveKey('sd_orders',orders);updateAll();}
+function exportCSV(){if(!orders.length){alert('データがありません');return;}const h=['受注番号','顧客名','製品名','数量','受注日','納期','優先度','担当者','ライン','ステータス','進捗(%)','備考'];const rows=orders.map(o=>[o.no,o.client,o.product,o.qty,o.ordered,o.due,o.priority,o.person,o.line,cst(o),cprog(o),o.memo].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+[h.join(','),...rows].join('\n')],{type:'text/csv;charset=utf-8'}));a.download=`受注一覧_${tod()}.csv`;a.click();}
+function updateAll(){renderStats();renderAlerts();renderList();}
+initSteps();updateAll();
+</script>
+</body>
+</html>
