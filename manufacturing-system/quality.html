@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>品質・不良管理 | 製造管理</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<script src="js/nav.js"></script>
+<div class="page">
+  <div class="g4" style="margin-bottom:1rem">
+    <div class="stat"><div class="sv" id="s0">0</div><div class="sl">総件数</div></div>
+    <div class="stat"><div class="sv" id="s1" style="color:var(--danger)">0</div><div class="sl">未処置</div></div>
+    <div class="stat"><div class="sv" id="s2" style="color:var(--warn)">0</div><div class="sl">対応中</div></div>
+    <div class="stat"><div class="sv" id="s3" style="color:var(--success)">0</div><div class="sl">処置済</div></div>
+  </div>
+
+  <div class="card">
+    <div class="sec">不良記録 登録</div>
+    <div class="g3">
+      <div class="f"><label>発生日<span class="req">*</span></label><input type="date" id="f-date"></div>
+      <div class="f"><label>工程名<span class="req">*</span></label><input type="text" id="f-proc" placeholder="例：溶接工程"></div>
+      <div class="f"><label>ロット番号</label><input type="text" id="f-lot" placeholder="例：LOT-001"></div>
+    </div>
+    <div class="g3">
+      <div class="f"><label>不良種別<span class="req">*</span></label>
+        <select id="f-type"><option value="">選択</option><option>寸法不良</option><option>外観不良</option><option>機能不良</option><option>材料不良</option><option>組み付け不良</option><option>その他</option></select>
+      </div>
+      <div class="f"><label>不良数量</label><input type="number" id="f-qty" placeholder="0" min="0"></div>
+      <div class="f"><label>担当者</label><input type="text" id="f-pers" placeholder="氏名"></div>
+    </div>
+    <div class="f" style="margin-bottom:10px"><label>不良内容<span class="req">*</span></label><textarea id="f-desc" placeholder="発見場所・状況を記入"></textarea></div>
+    <div class="sec" style="margin-top:4px">なぜなぜ分析<span class="req">*</span>（5段階必須）</div>
+    <div id="naze-rows"></div>
+    <div class="f" style="margin-top:10px;margin-bottom:12px"><label>是正処置<span class="req">*</span></label><input type="text" id="f-act" placeholder="対策内容"></div>
+    <div class="btn-row">
+      <button class="btn btn-p" onclick="addRec()">登録する</button>
+      <button class="btn" onclick="clearForm()">クリア</button>
+    </div>
+    <div class="errmsg" id="errmsg"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec">不良記録一覧</div>
+    <div class="frow">
+      <select id="fil-s" onchange="render()"><option value="">全ステータス</option><option>未処置</option><option>対応中</option><option>処置済</option></select>
+      <select id="fil-t" onchange="render()"><option value="">全種別</option><option>寸法不良</option><option>外観不良</option><option>機能不良</option><option>材料不良</option><option>組み付け不良</option><option>その他</option></select>
+      <input type="text" id="fil-q" placeholder="工程 / ロット検索" oninput="render()" style="flex:1;min-width:100px">
+      <button class="btn" onclick="exportCSV()">CSV出力 ↓</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:80px">発生日</th><th style="width:96px">工程名</th><th style="width:80px">ロット</th>
+          <th style="width:88px">不良種別</th><th style="width:40px">数量</th><th style="width:72px">担当者</th>
+          <th style="width:76px">ステータス</th><th style="width:56px">操作</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty-hint">まだ記録がありません。フォームから登録してください。</div>
+    </div>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+let recs = loadKey('qc_recs') || [];
+let exp = {};
+
+const NAZE = ['直接原因（必須）','（必須）','（必須）','（必須）','根本原因（必須）'];
+function buildNaze(){
+  document.getElementById('naze-rows').innerHTML = NAZE.map((ph,i) =>
+    `<div style="display:grid;grid-template-columns:56px 1fr;gap:8px;align-items:center;margin-bottom:7px">
+      <span style="font-size:11px;font-weight:500;color:var(--text2);text-align:right">なぜ${i+1}</span>
+      <input type="text" id="n${i+1}" placeholder="${ph}" style="font-size:13px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:100%">
+    </div>`).join('');
+}
+buildNaze();
+document.getElementById('f-date').value = tod();
+
+function addRec(){
+  const date=document.getElementById('f-date').value;
+  const proc=document.getElementById('f-proc').value.trim();
+  const type=document.getElementById('f-type').value;
+  const desc=document.getElementById('f-desc').value.trim();
+  const ns=[1,2,3,4,5].map(i=>document.getElementById('n'+i).value.trim());
+  const act=document.getElementById('f-act').value.trim();
+  const errs=[];
+  if(!date) errs.push('発生日'); if(!proc) errs.push('工程名'); if(!type) errs.push('不良種別'); if(!desc) errs.push('不良内容');
+  ns.forEach((v,i)=>{ if(!v) errs.push('なぜ'+(i+1)); }); if(!act) errs.push('是正処置');
+  if(errs.length){document.getElementById('errmsg').textContent='必須項目が未入力：'+errs.join('、');return;}
+  document.getElementById('errmsg').textContent='';
+  recs.unshift({id:Date.now(),date,process:proc,lot:document.getElementById('f-lot').value.trim()||'—',type,qty:parseInt(document.getElementById('f-qty').value)||0,person:document.getElementById('f-pers').value.trim()||'—',desc,n1:ns[0],n2:ns[1],n3:ns[2],n4:ns[3],n5:ns[4],action:act,status:'未処置',createdAt:new Date().toLocaleString('ja-JP')});
+  saveKey('qc_recs',recs); render(); stats(); clearForm();
+}
+function clearForm(){
+  ['f-proc','f-lot','f-qty','f-pers','f-desc','f-act'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-type').value=''; document.getElementById('f-date').value=tod();
+  document.getElementById('errmsg').textContent=''; buildNaze();
+}
+function sbadge(s){
+  if(s==='未処置') return '<span class="badge b-red">未処置</span>';
+  if(s==='対応中') return '<span class="badge b-amb">対応中</span>';
+  return '<span class="badge b-grn">処置済</span>';
+}
+function render(){
+  const fs=document.getElementById('fil-s').value, ft=document.getElementById('fil-t').value, fq=document.getElementById('fil-q').value.toLowerCase();
+  const filtered=recs.filter(r=>(!fs||r.status===fs)&&(!ft||r.type===ft)&&(!fq||r.process.toLowerCase().includes(fq)||r.lot.toLowerCase().includes(fq)));
+  document.getElementById('empty').style.display=filtered.length?'none':'block';
+  document.getElementById('tbody').innerHTML=filtered.map(r=>{
+    const ex=exp[r.id];
+    const detail=ex?`<tr class="drow"><td colspan="8" style="padding:10px 12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;font-size:12px">
+        <div><span style="color:var(--text2)">不良内容：</span>${r.desc}</div>
+        <div><span style="color:var(--text2)">是正処置：</span>${r.action}</div>
+      </div>
+      <div style="font-size:12px;margin-bottom:8px"><span style="color:var(--text2)">なぜなぜ：</span>
+        ${[r.n1,r.n2,r.n3,r.n4,r.n5].map((n,i)=>`<span style="margin-right:10px">なぜ${i+1}：${n}</span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:11px;color:var(--text2)">ステータス：</span>
+        <select style="font-size:12px;padding:3px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text)" onchange="chgSt(${r.id},this.value)">
+          <option ${r.status==='未処置'?'selected':''}>未処置</option><option ${r.status==='対応中'?'selected':''}>対応中</option><option ${r.status==='処置済'?'selected':''}>処置済</option>
+        </select>
+        <button class="btn btn-d" style="font-size:11px;padding:3px 10px" onclick="delRec(${r.id})">削除</button>
+      </div>
+    </td></tr>`:'';
+    return `<tr>
+      <td>${r.date}</td><td>${r.process}</td><td style="font-size:11px">${r.lot}</td>
+      <td><span class="badge b-blu">${r.type}</span></td><td style="text-align:right">${r.qty}</td>
+      <td style="font-size:11px">${r.person}</td><td>${sbadge(r.status)}</td>
+      <td><button class="exbtn" onclick="exp[${r.id}]=!exp[${r.id}];render()">${ex?'▲':'▼'} 詳細</button></td>
+    </tr>${detail}`;
+  }).join('');
+}
+function stats(){
+  document.getElementById('s0').textContent=recs.length;
+  document.getElementById('s1').textContent=recs.filter(r=>r.status==='未処置').length;
+  document.getElementById('s2').textContent=recs.filter(r=>r.status==='対応中').length;
+  document.getElementById('s3').textContent=recs.filter(r=>r.status==='処置済').length;
+}
+function chgSt(id,v){const r=recs.find(r=>r.id===id);if(r){r.status=v;saveKey('qc_recs',recs);render();stats();}}
+function delRec(id){if(!confirm('削除しますか？'))return;recs=recs.filter(r=>r.id!==id);saveKey('qc_recs',recs);render();stats();}
+function exportCSV(){
+  if(!recs.length){alert('データがありません');return;}
+  const h=['発生日','工程名','ロット','不良種別','数量','担当者','ステータス','不良内容','なぜ①','なぜ②','なぜ③','なぜ④','なぜ⑤','是正処置'];
+  const rows=recs.map(r=>[r.date,r.process,r.lot,r.type,r.qty,r.person,r.status,r.desc,r.n1,r.n2,r.n3,r.n4,r.n5,r.action].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+[h.join(','),...rows].join('\n')],{type:'text/csv;charset=utf-8'}));a.download=`不良記録_${tod()}.csv`;a.click();
+}
+render(); stats();
+</script>
+</body>
+</html>

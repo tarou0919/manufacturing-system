@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>設備保全 | 製造管理</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<script src="js/nav.js"></script>
+<div class="page">
+  <div id="alert-zone" style="margin-bottom:1rem"></div>
+  <div class="g4" style="margin-bottom:1rem">
+    <div class="stat"><div class="sv" id="s0">0</div><div class="sl">登録設備数</div></div>
+    <div class="stat"><div class="sv" id="s1" style="color:var(--danger)">0</div><div class="sl">点検超過</div></div>
+    <div class="stat"><div class="sv" id="s2" style="color:var(--warn)">0</div><div class="sl">期限7日以内</div></div>
+    <div class="stat"><div class="sv" id="s3">0</div><div class="sl">修理履歴件数</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('eq',this)">設備管理</button>
+    <button class="tab" onclick="switchTab('sched',this)">点検スケジュール</button>
+    <button class="tab" onclick="switchTab('hist',this)">故障・修理履歴</button>
+  </div>
+
+  <div id="panel-eq" class="panel show">
+    <div class="card">
+      <div class="sec">設備登録</div>
+      <div class="g3">
+        <div class="f"><label>設備名<span class="req">*</span></label><input type="text" id="eq-name" placeholder="例：NC旋盤 #1"></div>
+        <div class="f"><label>設備ID</label><input type="text" id="eq-id" placeholder="例：M-001"></div>
+        <div class="f"><label>ライン名<span class="req">*</span></label><input type="text" id="eq-line" placeholder="例：Aライン"></div>
+      </div>
+      <div class="g3">
+        <div class="f"><label>設備種別</label>
+          <select id="eq-type"><option value="">選択</option><option>旋盤</option><option>フライス盤</option><option>プレス機</option><option>溶接機</option><option>コンベア</option><option>ロボット</option><option>その他</option></select>
+        </div>
+        <div class="f"><label>次回点検予定日</label><input type="date" id="eq-next"></div>
+        <div class="f"><label>点検周期</label>
+          <select id="eq-cycle"><option value="">選択</option><option value="7">週次（7日）</option><option value="30">月次（30日）</option><option value="90">3ヶ月</option><option value="180">半年</option><option value="365">年次</option></select>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="f"><label>担当者</label><input type="text" id="eq-person" placeholder="氏名"></div>
+        <div class="f"><label>担当者メール</label><input type="email" id="eq-email" placeholder="例：yamada@example.com"></div>
+      </div>
+      <div class="btn-row"><button class="btn btn-p" onclick="addEq()">設備登録</button><button class="btn" onclick="clearEqForm()">クリア</button></div>
+      <div class="errmsg" id="eq-err"></div>
+    </div>
+    <div class="card">
+      <div class="sec">設備一覧</div>
+      <div class="frow">
+        <input type="text" id="eq-q" placeholder="設備名 / ライン検索" oninput="renderEq()" style="flex:1;min-width:120px">
+        <select id="eq-fl" onchange="renderEq()"><option value="">全ライン</option></select>
+        <button class="btn" onclick="exportEqCSV()">CSV出力 ↓</button>
+      </div>
+      <div id="eq-list"></div>
+      <div id="eq-empty" class="empty-hint">設備が未登録です。</div>
+    </div>
+  </div>
+
+  <div id="panel-sched" class="panel">
+    <div class="card">
+      <div class="sec">点検スケジュール一覧（残り日数順）</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:108px">設備名</th><th style="width:72px">ライン</th>
+            <th style="width:88px">次回点検日</th><th style="width:80px">残り日数</th>
+            <th style="width:64px">周期</th><th style="width:64px">担当者</th><th style="width:72px">状態</th>
+          </tr></thead>
+          <tbody id="sched-tbody"></tbody>
+        </table>
+        <div id="sched-empty" class="empty-hint">設備を登録するとスケジュールが表示されます。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-hist" class="panel">
+    <div class="card">
+      <div class="sec">故障・修理記録</div>
+      <div class="g3">
+        <div class="f"><label>設備<span class="req">*</span></label><select id="ht-eq"><option value="">設備を選択</option></select></div>
+        <div class="f"><label>発生日<span class="req">*</span></label><input type="date" id="ht-date"></div>
+        <div class="f"><label>故障種別</label>
+          <select id="ht-type"><option>機械故障</option><option>電気系統</option><option>油圧・空圧</option><option>消耗品交換</option><option>その他</option></select>
+        </div>
+      </div>
+      <div class="g3">
+        <div class="f"><label>対応者<span class="req">*</span></label><input type="text" id="ht-person" placeholder="氏名"></div>
+        <div class="f"><label>停止時間（分）</label><input type="number" id="ht-stop" placeholder="0" min="0"></div>
+        <div class="f"><label>修理費用（円）</label><input type="number" id="ht-cost" placeholder="0" min="0"></div>
+      </div>
+      <div class="f" style="margin-bottom:10px"><label>故障内容<span class="req">*</span></label><textarea id="ht-desc" placeholder="症状・原因・対応内容"></textarea></div>
+      <div class="f" style="margin-bottom:12px"><label>修理結果</label>
+        <div style="display:flex;gap:12px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="radio" name="ht-res" value="修理完了" checked> 修理完了</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="radio" name="ht-res" value="部品待ち"> 部品待ち</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px"><input type="radio" name="ht-res" value="経過観察"> 経過観察</label>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn btn-p" onclick="addHist()">記録登録</button><button class="btn" onclick="clearHistForm()">クリア</button></div>
+      <div class="errmsg" id="ht-err"></div>
+    </div>
+    <div class="card">
+      <div class="sec">修理履歴一覧</div>
+      <div class="frow">
+        <select id="ht-feq" onchange="renderHist()"><option value="">全設備</option></select>
+        <select id="ht-fres" onchange="renderHist()"><option value="">全結果</option><option>修理完了</option><option>部品待ち</option><option>経過観察</option></select>
+        <button class="btn" onclick="exportHistCSV()">CSV出力 ↓</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:108px">設備名</th><th style="width:72px">発生日</th><th style="width:88px">故障種別</th>
+            <th style="width:64px">対応者</th><th style="width:60px">停止(分)</th><th style="width:72px">費用(円)</th>
+            <th style="width:76px">結果</th><th style="width:44px">詳細</th>
+          </tr></thead>
+          <tbody id="hist-tbody"></tbody>
+        </table>
+        <div id="hist-empty" class="empty-hint">修理履歴がありません。</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="js/shared.js"></script>
+<script>
+let eqs=loadKey('eq2_eqs')||[]; let hists=loadKey('eq2_hists')||[]; let expH={};
+const CL={'7':'週次','30':'月次','90':'3ヶ月','180':'半年','365':'年次'};
+document.getElementById('ht-date').value=tod();
+function schedSt(e){if(!e.nextInspection)return{lbl:'未設定',cls:'b-gray',d:null};const d=dd(e.nextInspection);if(d<0)return{lbl:'超過中',cls:'b-red',d};if(d<=7)return{lbl:'期限間近',cls:'b-amb',d};return{lbl:'正常',cls:'b-grn',d};}
+function renderAlerts(){
+  const ov=eqs.filter(e=>e.nextInspection&&dd(e.nextInspection)<0);
+  const nr=eqs.filter(e=>e.nextInspection&&dd(e.nextInspection)>=0&&dd(e.nextInspection)<=7);
+  let h='';
+  if(ov.length)h+=`<div class="alert danger"><span class="alert-icon">!</span><div><strong>点検期限超過 ${ov.length}件</strong><br><span style="font-size:12px">${ov.map(e=>e.name).join('、')}</span></div></div>`;
+  if(nr.length)h+=`<div class="alert warn"><span class="alert-icon">!</span><div><strong>点検期限7日以内 ${nr.length}件</strong><br><span style="font-size:12px">${nr.map(e=>e.name+'（残り'+dd(e.nextInspection)+'日）').join('、')}</span></div></div>`;
+  document.getElementById('alert-zone').innerHTML=h;
+}
+function renderStats(){
+  document.getElementById('s0').textContent=eqs.length;
+  document.getElementById('s1').textContent=eqs.filter(e=>e.nextInspection&&dd(e.nextInspection)<0).length;
+  document.getElementById('s2').textContent=eqs.filter(e=>e.nextInspection&&dd(e.nextInspection)>=0&&dd(e.nextInspection)<=7).length;
+  document.getElementById('s3').textContent=hists.length;
+}
+function updateFilters(){
+  const lines=[...new Set(eqs.map(e=>e.line).filter(Boolean))];
+  ['eq-fl'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const c=el.value;el.innerHTML='<option value="">全ライン</option>';lines.forEach(l=>{const o=document.createElement('option');o.value=l;o.textContent=l;el.appendChild(o);});el.value=c;});
+  ['ht-eq','ht-feq'].forEach(id=>{const el=document.getElementById(id);if(!el)return;const c=el.value;el.innerHTML=id==='ht-feq'?'<option value="">全設備</option>':'<option value="">設備を選択</option>';eqs.forEach(e=>{const o=document.createElement('option');o.value=e.id;o.textContent=e.name+'（'+e.line+'）';el.appendChild(o);});el.value=c;});
+}
+function addEq(){
+  const name=document.getElementById('eq-name').value.trim(),line=document.getElementById('eq-line').value.trim();
+  if(!name||!line){document.getElementById('eq-err').textContent='設備名・ライン名は必須です。';return;}
+  document.getElementById('eq-err').textContent='';
+  eqs.push({id:Date.now(),name,eqId:document.getElementById('eq-id').value.trim(),line,type:document.getElementById('eq-type').value,nextInspection:document.getElementById('eq-next').value,cycle:document.getElementById('eq-cycle').value,person:document.getElementById('eq-person').value.trim(),email:document.getElementById('eq-email').value.trim()});
+  saveKey('eq2_eqs',eqs);renderAll();clearEqForm();
+}
+function clearEqForm(){['eq-name','eq-id','eq-line','eq-next','eq-person','eq-email'].forEach(id=>document.getElementById(id).value='');document.getElementById('eq-type').value='';document.getElementById('eq-cycle').value='';document.getElementById('eq-err').textContent='';}
+function renderEq(){
+  const q=document.getElementById('eq-q').value.toLowerCase(),fl=document.getElementById('eq-fl').value;
+  const filtered=eqs.filter(e=>(!fl||e.line===fl)&&(!q||e.name.toLowerCase().includes(q)||e.line.toLowerCase().includes(q)));
+  document.getElementById('eq-empty').style.display=filtered.length?'none':'block';
+  document.getElementById('eq-list').innerHTML=filtered.map(e=>{
+    const st=schedSt(e);const hc=hists.filter(h=>h.eqId===e.id).length;
+    return `<div style="border:0.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px">
+        <div><div style="font-size:13px;font-weight:500">${e.name}${e.eqId?' <span style="font-size:11px;color:var(--text2)">('+e.eqId+')</span>':''}</div><div style="font-size:11px;color:var(--text2)">${e.line}${e.type?' · '+e.type:''}</div></div>
+        <div style="display:flex;gap:6px"><span class="badge ${st.cls}">${st.lbl}</span><button class="btn btn-d" style="font-size:11px;padding:3px 10px" onclick="delEq(${e.id})">削除</button></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:var(--text2)">
+        <div>次回点検：<span style="color:var(--text)">${e.nextInspection||'未設定'}</span>${st.d!==null?' <span style="color:'+(st.d<0?'var(--danger)':'var(--text2)')+'">（'+(st.d<0?'超過'+Math.abs(st.d)+'日':'残り'+st.d+'日')+'）</span>':''}</div>
+        <div>周期：<span style="color:var(--text)">${CL[e.cycle]||'未設定'}</span></div>
+        <div>担当：<span style="color:var(--text)">${e.person||'—'}</span></div>
+        <div>修理履歴：<span style="color:var(--text)">${hc}件</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderSched(){
+  const sorted=[...eqs].sort((a,b)=>{const da=a.nextInspection?dd(a.nextInspection):9999,db=b.nextInspection?dd(b.nextInspection):9999;return da-db;});
+  document.getElementById('sched-empty').style.display=sorted.length?'none':'block';
+  document.getElementById('sched-tbody').innerHTML=sorted.map(e=>{const st=schedSt(e);return `<tr>
+    <td style="font-size:12px;font-weight:500">${e.name}</td><td style="font-size:11px">${e.line}</td>
+    <td>${e.nextInspection||'—'}</td>
+    <td style="color:${st.d!==null&&st.d<0?'var(--danger)':st.d!==null&&st.d<=7?'var(--warn)':'var(--text)'}">${st.d===null?'—':st.d<0?'超過'+Math.abs(st.d)+'日':'残り'+st.d+'日'}</td>
+    <td style="font-size:11px">${CL[e.cycle]||'—'}</td><td style="font-size:11px">${e.person||'—'}</td>
+    <td><span class="badge ${st.cls}">${st.lbl}</span></td>
+  </tr>`;}).join('');
+}
+function addHist(){
+  const eqId=document.getElementById('ht-eq').value,date=document.getElementById('ht-date').value,person=document.getElementById('ht-person').value.trim(),desc=document.getElementById('ht-desc').value.trim();
+  if(!eqId||!date||!person||!desc){document.getElementById('ht-err').textContent='必須項目を入力してください。';return;}
+  document.getElementById('ht-err').textContent='';
+  hists.unshift({id:Date.now(),eqId:parseInt(eqId),date,type:document.getElementById('ht-type').value,person,stop:parseInt(document.getElementById('ht-stop').value)||0,cost:parseInt(document.getElementById('ht-cost').value)||0,desc,result:document.querySelector('input[name="ht-res"]:checked').value,createdAt:new Date().toLocaleString('ja-JP')});
+  saveKey('eq2_hists',hists);renderStats();renderHist();clearHistForm();
+}
+function clearHistForm(){document.getElementById('ht-eq').value='';document.getElementById('ht-date').value=tod();['ht-person','ht-stop','ht-cost','ht-desc'].forEach(id=>document.getElementById(id).value='');document.querySelector('input[name="ht-res"][value="修理完了"]').checked=true;document.getElementById('ht-err').textContent='';}
+function renderHist(){
+  const feq=document.getElementById('ht-feq').value,fres=document.getElementById('ht-fres').value;
+  const filtered=hists.filter(h=>(!feq||h.eqId===parseInt(feq))&&(!fres||h.result===fres));
+  document.getElementById('hist-empty').style.display=filtered.length?'none':'block';
+  document.getElementById('hist-tbody').innerHTML=filtered.map(h=>{
+    const eq=eqs.find(e=>e.id===h.eqId);const ex=expH[h.id];
+    const rc=h.result==='修理完了'?'b-grn':h.result==='部品待ち'?'b-red':'b-amb';
+    const detail=ex?`<tr class="drow"><td colspan="8" style="padding:10px 12px"><div style="font-size:12px;margin-bottom:6px">${h.desc}</div><div style="display:flex;gap:8px"><button class="btn btn-d" style="font-size:11px;padding:3px 10px" onclick="delHist(${h.id})">削除</button><span style="font-size:11px;color:var(--text3)">${h.createdAt}</span></div></td></tr>`:'';
+    return `<tr><td style="font-size:12px">${eq?eq.name:'不明'}</td><td>${h.date}</td><td><span class="badge b-blu">${h.type}</span></td><td style="font-size:11px">${h.person}</td><td style="text-align:right">${h.stop}</td><td style="text-align:right">${h.cost.toLocaleString()}</td><td><span class="badge ${rc}">${h.result}</span></td><td><button class="exbtn" onclick="expH[${h.id}]=!expH[${h.id}];renderHist()">${ex?'▲':'▼'}</button></td></tr>${detail}`;
+  }).join('');
+}
+function delEq(id){if(!confirm('削除しますか？'))return;eqs=eqs.filter(e=>e.id!==id);saveKey('eq2_eqs',eqs);renderAll();}
+function delHist(id){if(!confirm('削除しますか？'))return;hists=hists.filter(h=>h.id!==id);saveKey('eq2_hists',hists);renderStats();renderHist();}
+function exportEqCSV(){if(!eqs.length){alert('データがありません');return;}const h=['設備名','設備ID','ライン','種別','次回点検日','周期','担当者','メール'];const rows=eqs.map(e=>[e.name,e.eqId,e.line,e.type,e.nextInspection,CL[e.cycle]||'',e.person,e.email].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(','));dl('\uFEFF'+[h.join(','),...rows].join('\n'),`設備一覧_${tod()}.csv`);}
+function exportHistCSV(){if(!hists.length){alert('データがありません');return;}const h=['設備名','発生日','故障種別','対応者','停止時間','修理費用','結果','内容'];const rows=hists.map(h2=>{const eq=eqs.find(e=>e.id===h2.eqId);return[eq?eq.name:'不明',h2.date,h2.type,h2.person,h2.stop,h2.cost,h2.result,h2.desc].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',');});dl('\uFEFF'+[h.join(','),...rows].join('\n'),`修理履歴_${tod()}.csv`);}
+function dl(csv,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();}
+function renderAll(){renderStats();renderAlerts();updateFilters();renderEq();renderSched();renderHist();}
+renderAll();
+</script>
+</body>
+</html>
