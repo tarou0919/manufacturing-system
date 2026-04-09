@@ -3,129 +3,470 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>デモデータ | 製造管理</title>
+<title>デモデータ（ランダム生成） | 製造管理</title>
 <link rel="stylesheet" href="css/style.css">
+<style>
+.mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:1rem}
+.mode-card{border:2px solid var(--border);border-radius:var(--radius-lg);padding:14px;cursor:pointer;transition:all .15s;text-align:center;background:var(--bg)}
+.mode-card:hover{border-color:var(--border2)}
+.mode-card.selected{border-color:var(--info);background:var(--info-bg)}
+.mode-card.selected .mode-name{color:var(--info)}
+.mode-card.selected-warn{border-color:var(--danger);background:var(--danger-bg)}
+.mode-card.selected-warn .mode-name{color:var(--danger)}
+.mode-card.selected-ok{border-color:var(--success);background:var(--success-bg)}
+.mode-card.selected-ok .mode-name{color:var(--success)}
+.mode-icon{font-size:28px;margin-bottom:6px;line-height:1}
+.mode-name{font-size:13px;font-weight:500;color:var(--text)}
+.mode-desc{font-size:11px;color:var(--text2);margin-top:4px;line-height:1.5}
+.kpi-preview{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:1rem}
+.kpi-p{background:var(--bg2);border-radius:var(--radius);padding:10px;text-align:center}
+.kpi-pv{font-size:18px;font-weight:500}
+.kpi-pl{font-size:10px;color:var(--text2);margin-top:3px}
+.seed-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.prog-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:12px 0}
+.prog-fill{height:100%;border-radius:4px;transition:width .4s}
+.log-box{background:var(--bg2);border-radius:var(--radius);padding:10px 12px;font-size:12px;line-height:1.8;color:var(--text2);min-height:60px;white-space:pre-wrap}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.detail-item{font-size:12px;padding:8px 10px;background:var(--bg2);border-radius:var(--radius)}
+.detail-label{font-size:10px;color:var(--text2);margin-bottom:2px}
+.detail-val{font-size:13px;font-weight:500;color:var(--text)}
+</style>
 </head>
 <body>
 <script src="js/nav.js"></script>
 <div class="page">
-  <div class="card">
-    <div class="sec">デモデータ 一括投入ツール</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.7">各モジュールにリアルなサンプルデータを投入します。全ページの動作をすぐに確認できます。<br>既存データがある場合は上書きされます。</p>
-    <div id="mod-list">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border)">
-        <div><div style="font-size:13px;font-weight:500">① 品質・不良管理</div><div style="font-size:11px;color:var(--text2)">不良記録 15件（未処置・対応中・処置済 混在）</div></div>
-        <span id="st-qc" style="font-size:11px;padding:2px 10px;border-radius:9999px;background:var(--info-bg);color:var(--info)">待機中</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border)">
-        <div><div style="font-size:13px;font-weight:500">② 設備保全</div><div style="font-size:11px;color:var(--text2)">設備 8台（超過・間近・正常 混在）+ 修理履歴 6件</div></div>
-        <span id="st-eq" style="font-size:11px;padding:2px 10px;border-radius:9999px;background:var(--info-bg);color:var(--info)">待機中</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border)">
-        <div><div style="font-size:13px;font-weight:500">③ 生産実績</div><div style="font-size:11px;color:var(--text2)">直近30日分（A〜Cライン × 日次）</div></div>
-        <span id="st-prod" style="font-size:11px;padding:2px 10px;border-radius:9999px;background:var(--info-bg);color:var(--info)">待機中</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0">
-        <div><div style="font-size:13px;font-weight:500">④ スケジュール・納期</div><div style="font-size:11px;color:var(--text2)">受注 10件（超過・緊急・進行中・未着手 混在）</div></div>
-        <span id="st-sd" style="font-size:11px;padding:2px 10px;border-radius:9999px;background:var(--info-bg);color:var(--info)">待機中</span>
-      </div>
+
+<div class="card">
+  <div class="sec">ランダム デモデータ生成</div>
+  <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.7">
+    シナリオモードを選択してボタンを押すだけで、全モジュールにランダムなデモデータが一括投入されます。<br>
+    押すたびに異なるデータが生成されます。
+  </p>
+
+  <!-- モード選択 -->
+  <div style="font-size:13px;font-weight:500;margin-bottom:10px">シナリオモードを選択</div>
+  <div class="mode-grid" id="mode-grid">
+    <div class="mode-card" onclick="selectMode('good',this)" id="mode-good">
+      <div class="mode-icon">🟢</div>
+      <div class="mode-name">良好</div>
+      <div class="mode-desc">OEE高め・不良少なめ・納期余裕あり。順調な工場の状態。</div>
     </div>
-    <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:12px 0"><div id="prog" style="height:100%;background:var(--info);border-radius:4px;width:0%;transition:width .4s"></div></div>
-    <div style="background:var(--bg2);border-radius:var(--radius);padding:10px 12px;font-size:12px;line-height:1.8;color:var(--text2);min-height:60px;white-space:pre-wrap" id="log">投入ボタンを押すと開始します...</div>
-    <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
-      <button class="btn btn-p" style="font-size:14px;padding:10px 24px" id="btn-load" onclick="loadAll()">デモデータを投入する</button>
-      <button class="btn" onclick="checkStatus()">現在のデータを確認</button>
-      <button class="btn btn-d" onclick="clearAll()">全データをクリア</button>
+    <div class="mode-card selected" onclick="selectMode('normal',this)" id="mode-normal">
+      <div class="mode-icon">🟡</div>
+      <div class="mode-name">通常</div>
+      <div class="mode-desc">標準的な現場。一部アラートあり・進行中の課題が混在。</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px" id="summary" style="display:none">
-      <div class="stat"><div class="sv" id="sm0">0</div><div class="sl">不良記録</div></div>
-      <div class="stat"><div class="sv" id="sm1">0</div><div class="sl">登録設備</div></div>
-      <div class="stat"><div class="sv" id="sm2">0</div><div class="sl">生産実績</div></div>
-      <div class="stat"><div class="sv" id="sm3">0</div><div class="sl">受注件数</div></div>
+    <div class="mode-card" onclick="selectMode('critical',this)" id="mode-critical">
+      <div class="mode-icon">🔴</div>
+      <div class="mode-name">危機的</div>
+      <div class="mode-desc">OEE低め・不良多発・納期超過続出。課題山積のシナリオ。</div>
     </div>
-  </div>
-  <div class="card">
-    <div class="sec">各ページへのリンク</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <a href="index.html" class="btn btn-p">統合ダッシュボード</a>
-      <a href="quality.html" class="btn">① 品質管理</a>
-      <a href="equipment.html" class="btn">② 設備保全</a>
-      <a href="production.html" class="btn">③ 生産実績</a>
-      <a href="schedule.html" class="btn">④ スケジュール</a>
+    <div class="mode-card" onclick="selectMode('recovery',this)" id="mode-recovery">
+      <div class="mode-icon">📈</div>
+      <div class="mode-name">改善中</div>
+      <div class="mode-desc">以前は悪かったが直近で改善傾向。回復途中のシナリオ。</div>
+    </div>
+    <div class="mode-card" onclick="selectMode('maintenance',this)" id="mode-maintenance">
+      <div class="mode-icon">🔧</div>
+      <div class="mode-name">設備集中</div>
+      <div class="mode-desc">設備の点検超過・修理多発。メンテナンス課題が中心。</div>
+    </div>
+    <div class="mode-card" onclick="selectMode('rush',this)" id="mode-rush">
+      <div class="mode-icon">🚨</div>
+      <div class="mode-name">納期ラッシュ</div>
+      <div class="mode-desc">受注が集中・緊急案件多数。スケジュール管理の課題。</div>
     </div>
   </div>
+
+  <!-- KPI プレビュー -->
+  <div style="font-size:13px;font-weight:500;margin-bottom:8px">このモードで生成される目安</div>
+  <div class="kpi-preview">
+    <div class="kpi-p"><div class="kpi-pv" id="pv-oee">—</div><div class="kpi-pl">OEE 平均</div></div>
+    <div class="kpi-p"><div class="kpi-pv" id="pv-yield">—</div><div class="kpi-pl">良品率 平均</div></div>
+    <div class="kpi-p"><div class="kpi-pv" id="pv-defect">—</div><div class="kpi-pl">不良記録件数</div></div>
+    <div class="kpi-p"><div class="kpi-pv" id="pv-overdue">—</div><div class="kpi-pl">納期超過件数</div></div>
+  </div>
+
+  <!-- シード値 -->
+  <div class="seed-row">
+    <div style="font-size:13px;color:var(--text2)">シード値（同じ値 = 同じデータが再現）：</div>
+    <input type="number" id="seed-input" style="font-size:13px;padding:6px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:120px" placeholder="空 = 毎回異なる">
+    <button class="btn" onclick="randomSeed()">🎲 ランダム</button>
+    <div style="font-size:11px;color:var(--text2)" id="seed-hint"></div>
+  </div>
+
+  <!-- 件数設定 -->
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px">
+    <div class="f"><label>不良記録 件数</label><input type="number" id="qc-n" value="15" min="3" max="50"></div>
+    <div class="f"><label>設備 台数</label><input type="number" id="eq-n" value="8" min="2" max="20"></div>
+    <div class="f"><label>生産実績 日数</label><input type="number" id="prod-n" value="30" min="7" max="90"></div>
+    <div class="f"><label>受注 件数</label><input type="number" id="ord-n" value="10" min="3" max="20"></div>
+  </div>
+
+  <div class="prog-bar"><div class="prog-fill" id="prog" style="width:0%"></div></div>
+  <div class="log-box" id="log">モードを選択して「デモデータを生成・投入する」を押してください。</div>
+
+  <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+    <button class="btn btn-p" style="font-size:14px;padding:10px 24px" id="btn-load" onclick="loadAll()">デモデータを生成・投入する</button>
+    <button class="btn" onclick="checkStatus()">現在のデータを確認</button>
+    <button class="btn btn-d" onclick="clearAll()">全データをクリア</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;display:none" id="summary">
+    <div class="stat"><div class="sv" id="sm0">0</div><div class="sl">不良記録</div></div>
+    <div class="stat"><div class="sv" id="sm1">0</div><div class="sl">登録設備</div></div>
+    <div class="stat"><div class="sv" id="sm2">0</div><div class="sl">生産実績</div></div>
+    <div class="stat"><div class="sv" id="sm3">0</div><div class="sl">受注件数</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="sec">各ページへのリンク</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <a href="index.html" class="btn btn-p">統合ダッシュボード</a>
+    <a href="quality.html" class="btn">① 品質管理</a>
+    <a href="equipment.html" class="btn">② 設備保全</a>
+    <a href="production.html" class="btn">③ 生産実績</a>
+    <a href="schedule.html" class="btn">④ スケジュール</a>
+  </div>
+</div>
+
 </div>
 <script src="js/shared.js"></script>
 <script>
-function setLog(msg){document.getElementById('log').textContent+='\n'+msg;}
-function setProg(p){document.getElementById('prog').style.width=p+'%';}
-function setSt(id,text,ok){const el=document.getElementById(id);el.textContent=text;el.style.background=ok?'var(--success-bg)':'var(--info-bg)';el.style.color=ok?'var(--success)':'var(--info)';}
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+// ── シード付き乱数 ────────────────────────────────────────────
+let _seed = 0;
+function setSeed(s) { _seed = s; }
+function seededRand() {
+  _seed = (_seed * 1664525 + 1013904223) & 0xffffffff;
+  return ((_seed >>> 0) / 0xffffffff);
+}
+function srnd(a, b) { return Math.floor(seededRand() * (b - a + 1)) + a; }
+function spick(arr) { return arr[Math.floor(seededRand() * arr.length)]; }
 
-async function loadAll(){
-  document.getElementById('btn-load').disabled=true;
-  document.getElementById('log').textContent='';setProg(0);
-  setLog('▶ デモデータの投入を開始します...');await sleep(300);
+// ── モード定義 ────────────────────────────────────────────────
+const MODES = {
+  good:        { oeeRange:[78,92], yieldRange:[96,99.5], defectPct:[0,2], availRange:[92,100], openQCPct:10, overdueOrd:0, nearEq:1, overEq:0, label:'良好',        progressRange:[60,95] },
+  normal:      { oeeRange:[65,82], yieldRange:[92,98],   defectPct:[1,5], availRange:[82,98],  openQCPct:35, overdueOrd:1, nearEq:2, overEq:1, label:'通常',        progressRange:[30,75] },
+  critical:    { oeeRange:[45,65], yieldRange:[80,90],   defectPct:[5,12],availRange:[65,85],  openQCPct:65, overdueOrd:3, nearEq:3, overEq:3, label:'危機的',      progressRange:[10,50] },
+  recovery:    { oeeRange:[60,85], yieldRange:[88,97],   defectPct:[2,8], availRange:[75,95],  openQCPct:25, overdueOrd:1, nearEq:2, overEq:1, label:'改善中',      progressRange:[40,80] },
+  maintenance: { oeeRange:[60,78], yieldRange:[90,97],   defectPct:[2,6], availRange:[70,88],  openQCPct:30, overdueOrd:1, nearEq:4, overEq:3, label:'設備集中',    progressRange:[30,70] },
+  rush:        { oeeRange:[68,85], yieldRange:[91,97],   defectPct:[2,5], availRange:[85,98],  openQCPct:20, overdueOrd:3, nearEq:1, overEq:1, label:'納期ラッシュ', progressRange:[20,65] },
+};
 
-  setSt('st-qc','投入中...',false);
-  const qc=makeQC();saveKey('qc_recs',qc);setSt('st-qc','完了 ✓',true);setLog(`✓ 品質管理：${qc.length}件`);setProg(25);await sleep(400);
+let currentMode = 'normal';
 
-  setSt('st-eq','投入中...',false);
-  const {eqs,hists}=makeEQ();saveKey('eq2_eqs',eqs);saveKey('eq2_hists',hists);saveKey('eq2_scheds',[]);setSt('st-eq','完了 ✓',true);setLog(`✓ 設備保全：設備${eqs.length}台 ／ 修理履歴${hists.length}件`);setProg(50);await sleep(400);
+// モード選択状態のクラスマップ
+const MODE_CLS = { good:'selected-ok', normal:'selected', critical:'selected-warn', recovery:'selected', maintenance:'selected', rush:'selected-warn' };
 
-  setSt('st-prod','投入中...',false);
-  const prods=makeProd();saveKey('prod_recs',prods);setSt('st-prod','完了 ✓',true);setLog(`✓ 生産実績：${prods.length}件`);setProg(75);await sleep(400);
-
-  setSt('st-sd','投入中...',false);
-  const orders=makeOrders();saveKey('sd_orders',orders);setSt('st-sd','完了 ✓',true);setLog(`✓ スケジュール：${orders.length}件`);setProg(100);await sleep(300);
-
-  setLog('\n✅ 全モジュールへの投入が完了しました！');
-  showSummary(qc.length,eqs.length,prods.length,orders.length);
-  document.getElementById('btn-load').disabled=false;
+function selectMode(mode, el) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected','selected-warn','selected-ok'));
+  el.classList.add(MODE_CLS[mode] || 'selected');
+  updatePreview();
 }
 
-function makeQC(){
-  const processes=['溶接工程','プレス工程','塗装工程','組立工程','検査工程','機械加工'],types=['寸法不良','外観不良','機能不良','材料不良','組み付け不良'],statuses=['未処置','未処置','対応中','対応中','処置済'],persons=['田中','鈴木','佐藤','山田','中村'];
-  return Array.from({length:15},(_,i)=>{const date=dAgo(rnd(0,20));const s=pick(statuses);return{id:Date.now()+i,date,process:pick(processes),lot:`LOT-2026-${String(100+i).padStart(3,'0')}`,type:pick(types),qty:rnd(1,10),person:pick(persons),desc:'工程にて不良を確認。詳細調査を実施。',n1:'作業手順が守られていなかった',n2:'作業手順書の確認が不十分だった',n3:'教育訓練が不足していた',n4:'訓練計画が策定されていなかった',n5:'管理体制が確立されていなかった',action:'作業手順書を改訂し再教育を実施する',photos:[],status:s,sev:pick(['軽微','中程度','重大']),mgr:'山田部長',createdAt:new Date().toLocaleString('ja-JP')};});
+function updatePreview() {
+  const m = MODES[currentMode];
+  const avgOEE = Math.round((m.oeeRange[0] + m.oeeRange[1]) / 2);
+  const avgYield = ((m.yieldRange[0] + m.yieldRange[1]) / 2).toFixed(1);
+  const qcN = parseInt(document.getElementById('qc-n').value) || 15;
+  const ordN = parseInt(document.getElementById('ord-n').value) || 10;
+
+  document.getElementById('pv-oee').textContent = `${m.oeeRange[0]}〜${m.oeeRange[1]}%`;
+  document.getElementById('pv-oee').style.color = avgOEE >= 75 ? 'var(--success)' : avgOEE >= 65 ? 'var(--warn)' : 'var(--danger)';
+  document.getElementById('pv-yield').textContent = `${m.yieldRange[0]}〜${m.yieldRange[1]}%`;
+  document.getElementById('pv-yield').style.color = m.yieldRange[0] >= 95 ? 'var(--success)' : m.yieldRange[0] >= 90 ? 'var(--warn)' : 'var(--danger)';
+  document.getElementById('pv-defect').textContent = `${qcN}件（未処置${Math.round(qcN * m.openQCPct / 100)}件）`;
+  document.getElementById('pv-defect').style.color = m.openQCPct > 50 ? 'var(--danger)' : m.openQCPct > 25 ? 'var(--warn)' : 'var(--success)';
+  document.getElementById('pv-overdue').textContent = `${m.overdueOrd}件 / 超過設備${m.overEq}台`;
+  document.getElementById('pv-overdue').style.color = m.overdueOrd > 2 ? 'var(--danger)' : m.overdueOrd > 0 ? 'var(--warn)' : 'var(--success)';
 }
-function makeEQ(){
-  const defs=[{name:'NC旋盤 #1',eqId:'M-001',line:'Aライン',type:'旋盤',d:-3},{name:'フライス盤 #2',eqId:'M-002',line:'Aライン',type:'フライス盤',d:2},{name:'プレス機 #1',eqId:'M-003',line:'Bライン',type:'プレス機',d:5},{name:'溶接ロボット',eqId:'M-004',line:'Bライン',type:'ロボット',d:14},{name:'コンベア A',eqId:'M-005',line:'Aライン',type:'コンベア',d:30},{name:'NC旋盤 #2',eqId:'M-006',line:'Cライン',type:'旋盤',d:-8},{name:'検査装置',eqId:'M-007',line:'Cライン',type:'その他',d:20},{name:'コンプレッサー',eqId:'M-008',line:'共通',type:'その他',d:45}];
-  const persons=['田中','鈴木','佐藤','山田'],cycles=['7','30','90','180'];
-  const eqs=defs.map((e,i)=>({id:1000+i,...e,intro:dAgo(rnd(200,1000)),nextInspection:dFrom(e.d),cycle:pick(cycles),person:pick(persons),email:pick(persons).toLowerCase()+'@factory.co.jp',note:''}));
-  const fTypes=['機械故障','電気系統','消耗品交換','油圧・空圧'],results=['修理完了','修理完了','修理完了','部品待ち','経過観察'];
-  const hists=Array.from({length:6},(_,i)=>{const eq=pick(eqs);return{id:2000+i,eqId:eq.id,date:dAgo(rnd(1,30)),type:pick(fTypes),person:pick(persons),stop:rnd(15,180),cost:rnd(10,500)*1000,desc:'異音が発生し点検したところ部品摩耗を確認。部品交換にて対応。',result:pick(results),createdAt:new Date().toLocaleString('ja-JP')};});
-  return{eqs,hists};
+
+function randomSeed() {
+  const s = Math.floor(Math.random() * 999999);
+  document.getElementById('seed-input').value = s;
+  document.getElementById('seed-hint').textContent = `シード: ${s}`;
 }
-function makeProd(){
-  const lines=['Aライン','Bライン','Cライン'],eqMap={'Aライン':'NC旋盤 #1','Bライン':'プレス機 #1','Cライン':'NC旋盤 #2'},persons=['田中','鈴木','佐藤'];
-  let id=3000;const recs=[];
-  for(let day=29;day>=0;day--){const date=dAgo(day);lines.forEach((line,li)=>{const plan=rnd(280,320),actual=rnd(Math.floor(plan*.85),plan),good=actual-rnd(0,Math.floor(actual*.06)),run=rnd(400,480),plantime=480,ct=rnd(80,110);const y=Math.round((good/actual)*1000)/10,av=Math.round((run/plantime)*1000)/10,pf=Math.min(100,Math.round(((actual*(ct/60))/run)*1000)/10),o=Math.round((av/100)*(pf/100)*(y/100)*1000)/10;recs.push({id:id++,date,line,eq:eqMap[line],plan,actual,good,run,plantime,stop:plantime-run,ct,person:persons[li],shift:rnd(0,1)?'日勤':'夜勤',memo:'',yieldRate:y,avail:av,perf:pf,oee:o,createdAt:new Date().toLocaleString('ja-JP')});});}
+
+// ── マスタデータ ─────────────────────────────────────────────
+const LINES   = ['Aライン','Bライン','Cライン'];
+const PERSONS = ['田中','鈴木','佐藤','山田','中村','伊藤'];
+const PROCESSES = ['溶接工程','プレス工程','塗装工程','組立工程','検査工程','機械加工'];
+const DEF_TYPES = ['寸法不良','外観不良','機能不良','材料不良','組み付け不良','その他'];
+const EQ_NAMES  = ['NC旋盤','フライス盤','プレス機','溶接ロボット','コンベア','検査装置','コンプレッサー','マシニングセンタ','研削盤','放電加工機'];
+const EQ_TYPES  = ['旋盤','フライス盤','プレス機','ロボット','コンベア','その他'];
+const STEPS     = ['受注確認','材料調達','加工・製造','検査・品質確認','梱包','出荷'];
+const CLIENTS   = ['〇〇製作所','△△工業','□□商事','◇◇自動車','★★電機','▲▲精機','●●化学','◎◎金属'];
+const PRODUCTS  = ['部品A','シャフトB型','ブラケットC','ギアD','ケースE','フランジF','カムG','スリーブH','ノズルI','バルブJ'];
+const PRIORITIES = ['緊急','高','通常','通常','通常','低'];
+const NAZE = [
+  '作業手順が守られていなかった',
+  '手順書の確認が不十分だった',
+  '教育訓練が不足していた',
+  '訓練計画が未策定だった',
+  '管理体制が確立されていなかった'
+];
+
+// ── 生成関数 ──────────────────────────────────────────────────
+function makeQC(m, count) {
+  const openN = Math.round(count * m.openQCPct / 100);
+  const progN = Math.round(count * 0.25);
+  const statuses = [];
+  for (let i = 0; i < count; i++) {
+    if (i < openN) statuses.push('未処置');
+    else if (i < openN + progN) statuses.push('対応中');
+    else statuses.push('処置済');
+  }
+  // shuffle statuses
+  for (let i = statuses.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRand() * (i + 1));
+    [statuses[i], statuses[j]] = [statuses[j], statuses[i]];
+  }
+  return Array.from({ length: count }, (_, i) => ({
+    id: Date.now() + i,
+    date: dAgo(srnd(0, 25)),
+    process: spick(PROCESSES),
+    lot: `LOT-${new Date().getFullYear()}-${String(100 + i).padStart(3, '0')}`,
+    type: spick(DEF_TYPES),
+    qty: srnd(1, 10),
+    person: spick(PERSONS),
+    desc: `${spick(PROCESSES)}にて${spick(DEF_TYPES)}を確認。調査・対応を実施。`,
+    n1: NAZE[0], n2: NAZE[1], n3: NAZE[2], n4: NAZE[3], n5: NAZE[4],
+    action: '是正処置を実施し、再発防止策を策定する',
+    photos: [], status: statuses[i],
+    sev: spick(['軽微','中程度','重大']),
+    mgr: spick(PERSONS),
+    createdAt: new Date().toLocaleString('ja-JP')
+  }));
+}
+
+function makeEQ(m, count) {
+  const cycles = ['7','30','90','180','365'];
+  // 設備ごとに点検残り日数を決める
+  const daysList = [];
+  for (let i = 0; i < count; i++) {
+    if (i < m.overEq) daysList.push(srnd(-15, -1));       // 超過
+    else if (i < m.overEq + m.nearEq) daysList.push(srnd(0, 7)); // 間近
+    else daysList.push(srnd(10, 60));                       // 正常
+  }
+  // shuffle
+  for (let i = daysList.length - 1; i > 0; i--) {
+    const j = Math.floor(seededRand() * (i + 1));
+    [daysList[i], daysList[j]] = [daysList[j], daysList[i]];
+  }
+
+  const eqs = Array.from({ length: count }, (_, i) => ({
+    id: 1000 + i,
+    name: EQ_NAMES[i % EQ_NAMES.length] + (i >= EQ_NAMES.length ? ` #${Math.floor(i / EQ_NAMES.length) + 1}` : ''),
+    eqId: `M-${String(i + 1).padStart(3, '0')}`,
+    line: LINES[i % LINES.length],
+    type: spick(EQ_TYPES),
+    intro: dAgo(srnd(100, 1000)),
+    nextInspection: dFrom(daysList[i]),
+    cycle: spick(cycles),
+    person: spick(PERSONS),
+    email: '',
+    note: ''
+  }));
+
+  const faultTypes = ['機械故障','電気系統','消耗品交換','油圧・空圧'];
+  const results    = ['修理完了','修理完了','修理完了','部品待ち','経過観察'];
+  const histN = Math.max(2, Math.round(count * 0.75));
+  const hists = Array.from({ length: histN }, (_, i) => {
+    const eq = spick(eqs);
+    const costBase = m === MODES.maintenance ? 50000 : 10000;
+    return {
+      id: 2000 + i, eqId: eq.id,
+      date: dAgo(srnd(1, 30)),
+      type: spick(faultTypes),
+      person: spick(PERSONS),
+      stop: srnd(15, m === MODES.maintenance ? 300 : 180),
+      cost: srnd(costBase / 10000, 50) * 10000,
+      desc: '点検中に部品摩耗を確認。交換・調整にて復旧。',
+      result: spick(results),
+      createdAt: new Date().toLocaleString('ja-JP')
+    };
+  });
+  return { eqs, hists };
+}
+
+function makeProd(m, days) {
+  const plantime = 480;
+  const ct = srnd(80, 110);
+  let id = 3000;
+  const recs = [];
+
+  for (let day = days - 1; day >= 0; day--) {
+    const date = dAgo(day);
+    // 「改善中」モードは後半ほど良くなる
+    const ratio = currentMode === 'recovery' ? (days - day) / days : 1;
+
+    LINES.forEach((line, li) => {
+      const oeeMin = m.oeeRange[0] + (currentMode === 'recovery' ? (m.oeeRange[1] - m.oeeRange[0]) * ratio * 0.5 : 0);
+      const planMin = 250, planMax = 350;
+      const plan = srnd(planMin, planMax);
+
+      const availPct = m.availRange[0] + seededRand() * (m.availRange[1] - m.availRange[0]);
+      const run = Math.round(plantime * availPct / 100);
+
+      const defMin = m.defectPct[0], defMax = m.defectPct[1];
+      const defPct = defMin + seededRand() * (defMax - defMin) * (currentMode === 'recovery' ? (1 - ratio * 0.6) : 1);
+      const actual = srnd(Math.floor(plan * 0.85), plan);
+      const good = actual - Math.round(actual * defPct / 100);
+
+      const y  = Math.round((good / actual) * 1000) / 10;
+      const av = Math.round((run / plantime) * 1000) / 10;
+      const pf = Math.min(100, Math.round(((actual * (ct / 60)) / run) * 1000) / 10);
+      const o  = Math.round((av / 100) * (pf / 100) * (y / 100) * 1000) / 10;
+
+      recs.push({
+        id: id++, date, line,
+        eq: '', plan, actual, good,
+        run, plantime, stop: plantime - run, ct,
+        person: PERSONS[li % PERSONS.length],
+        shift: seededRand() > 0.5 ? '日勤' : '夜勤',
+        memo: '',
+        yieldRate: y, avail: av, perf: pf, oee: o,
+        createdAt: new Date().toLocaleString('ja-JP')
+      });
+    });
+  }
   return recs;
 }
-function makeOrders(){
-  const clients=['〇〇製作所','△△工業','□□商事','◇◇自動車','★★電機'],products=['部品A-100','シャフトB型','ブラケットC','ギアD-5','ケースE'],priorities=['緊急','高','通常','通常','低'],lines=['Aライン','Bライン','Cライン'],persons=['田中','鈴木','佐藤'];
-  const STEPS=['受注確認','材料調達','加工・製造','検査・品質確認','梱包','出荷'];
-  return [-2,0,1,3,5,7,10,14,20,30].map((dueD,i)=>{
-    const ordered=dAgo(rnd(5,20)),due=dFrom(dueD),priority=priorities[i%priorities.length];
-    const stepsN=rnd(3,6),used=STEPS.slice(0,stepsN),totalD=Math.max(1,(new Date(due)-new Date(ordered))/86400000),progPct=dueD<0?rnd(60,90):dueD<=3?rnd(40,80):rnd(0,50),doneN=Math.floor(used.length*(progPct/100));
-    const steps=used.map((name,si)=>{const sS=new Date(ordered);sS.setDate(sS.getDate()+Math.floor(totalD/used.length*si));const sE=new Date(ordered);sE.setDate(sE.getDate()+Math.floor(totalD/used.length*(si+1)));const status=si<doneN?'完了':si===doneN&&progPct>0?'進行中':'未着手';return{name,start:sS.toISOString().slice(0,10),end:sE.toISOString().slice(0,10),status,progress:status==='完了'?100:status==='進行中'?rnd(20,80):0,person:pick(persons),note:''};});
-    const os=steps.every(s=>s.status==='完了')?'完了':steps.some(s=>s.status==='進行中'||s.status==='完了')?'進行中':'未着手';
-    return{id:4000+i,no:`ORD-2026-${String(i+1).padStart(3,'0')}`,client:clients[i%clients.length],product:products[i%products.length],qty:rnd(50,500),ordered,due,priority,person:pick(persons),line:pick(lines),memo:'',steps,status:os,progress:Math.round(steps.filter(s=>s.status==='完了').length/steps.length*100),createdAt:new Date().toLocaleString('ja-JP')};
+
+function makeOrders(m, count) {
+  // 納期分布をモードに応じて調整
+  const dueDists = {
+    good:        [-1, 3, 5, 7, 10, 14, 20, 25, 30, 40],
+    normal:      [-2, 0, 1, 3, 5,  7,  10, 14, 20, 30],
+    critical:    [-5,-3,-1, 0, 1,  3,   5,  7, 10, 14],
+    recovery:    [-2,-1, 0, 2, 3,  5,   7, 10, 14, 20],
+    maintenance: [-1, 0, 2, 4, 6,  8,  10, 14, 20, 30],
+    rush:        [-3,-2,-1, 0, 0,  1,   2,  3,  5,  7],
+  };
+  const dists = dueDists[currentMode] || dueDists.normal;
+
+  return Array.from({ length: count }, (_, i) => {
+    const dueD = dists[i % dists.length] + srnd(-1, 1);
+    const ordered = dAgo(srnd(5, 20));
+    const due = dFrom(dueD);
+    const priority = currentMode === 'rush'
+      ? spick(['緊急','緊急','高','高','通常'])
+      : spick(PRIORITIES);
+
+    const totalD = Math.max(1, (new Date(due) - new Date(ordered)) / 86400000);
+    const progMin = m.progressRange[0], progMax = m.progressRange[1];
+    const progPct = srnd(progMin, progMax);
+    const stepsN = Math.min(STEPS.length, srnd(3, 6));
+    const used = STEPS.slice(0, stepsN);
+    const doneN = Math.floor(used.length * (progPct / 100));
+
+    const steps = used.map((name, si) => {
+      const sS = new Date(ordered); sS.setDate(sS.getDate() + Math.floor(totalD / used.length * si));
+      const sE = new Date(ordered); sE.setDate(sE.getDate() + Math.floor(totalD / used.length * (si + 1)));
+      const status = si < doneN ? '完了' : si === doneN ? '進行中' : '未着手';
+      return {
+        name, start: sS.toISOString().slice(0, 10), end: sE.toISOString().slice(0, 10),
+        status, progress: status === '完了' ? 100 : status === '進行中' ? srnd(20, 80) : 0,
+        person: spick(PERSONS), note: ''
+      };
+    });
+
+    const no = `ORD-${new Date().getFullYear()}-${String(i + 1).padStart(3, '0')}`;
+    const os = steps.every(s => s.status === '完了') ? '完了'
+             : steps.some(s => s.status === '進行中' || s.status === '完了') ? '進行中' : '未着手';
+    return {
+      id: 4000 + i, no,
+      client: CLIENTS[i % CLIENTS.length],
+      product: PRODUCTS[i % PRODUCTS.length] + `-${srnd(100, 999)}`,
+      qty: srnd(50, 500),
+      ordered, due, priority,
+      person: spick(PERSONS), line: spick(LINES), memo: '',
+      steps, status: os,
+      progress: Math.round(steps.filter(s => s.status === '完了').length / steps.length * 100),
+      createdAt: new Date().toLocaleString('ja-JP')
+    };
   });
 }
-function checkStatus(){
-  const q=(loadKey('qc_recs')||[]).length,e=(loadKey('eq2_eqs')||[]).length,p=(loadKey('prod_recs')||[]).length,o=(loadKey('sd_orders')||[]).length;
+
+// ── 投入処理 ─────────────────────────────────────────────────
+function setLog(msg) { document.getElementById('log').textContent += '\n' + msg; }
+function setProg(p)  { document.getElementById('prog').style.width = p + '%'; }
+function sleep(ms)   { return new Promise(r => setTimeout(r, ms)); }
+
+async function loadAll() {
+  const m = MODES[currentMode];
+  const seedVal = document.getElementById('seed-input').value;
+  const seed = seedVal !== '' ? parseInt(seedVal) : Math.floor(Math.random() * 999999);
+  setSeed(seed);
+  document.getElementById('seed-input').value = seed;
+  document.getElementById('seed-hint').textContent = `使用シード: ${seed}（同じ値で再現できます）`;
+
+  const qcN   = parseInt(document.getElementById('qc-n').value)   || 15;
+  const eqN   = parseInt(document.getElementById('eq-n').value)   || 8;
+  const prodN = parseInt(document.getElementById('prod-n').value) || 30;
+  const ordN  = parseInt(document.getElementById('ord-n').value)  || 10;
+
+  document.getElementById('btn-load').disabled = true;
+  document.getElementById('log').textContent = '';
+  setProg(0);
+  setLog(`▶ モード「${m.label}」でデータ生成を開始します（シード: ${seed}）`);
+  await sleep(200);
+
+  const qc = makeQC(m, qcN);
+  saveKey('qc_recs', qc);
+  setLog(`✓ 品質管理：${qc.length}件（未処置${qc.filter(r=>r.status==='未処置').length}件）`);
+  setProg(25); await sleep(300);
+
+  const { eqs, hists } = makeEQ(m, eqN);
+  saveKey('eq2_eqs', eqs); saveKey('eq2_hists', hists); saveKey('eq2_scheds', []);
+  setLog(`✓ 設備保全：設備${eqs.length}台（超過${eqs.filter(e=>dd(e.nextInspection)<0).length}台 間近${eqs.filter(e=>{const d=dd(e.nextInspection);return d>=0&&d<=7;}).length}台）`);
+  setProg(50); await sleep(300);
+
+  const prods = makeProd(m, prodN);
+  saveKey('prod_recs', prods);
+  const avgOEE = Math.round(prods.reduce((a,r)=>a+r.oee,0)/prods.length*10)/10;
+  setLog(`✓ 生産実績：${prods.length}件（平均OEE: ${avgOEE}%）`);
+  setProg(75); await sleep(300);
+
+  const orders = makeOrders(m, ordN);
+  saveKey('sd_orders', orders);
+  function cst(o){if(o.status==='完了')return '完了';if(dd(o.due)<0)return '納期超過';return '進行中';}
+  setLog(`✓ スケジュール：${orders.length}件（超過${orders.filter(o=>dd(o.due)<0).length}件 緊急${orders.filter(o=>o.priority==='緊急').length}件）`);
+  setProg(100); await sleep(200);
+
+  setLog(`\n✅ 「${m.label}」モードのデモデータ投入が完了しました！`);
+  showSummary(qc.length, eqs.length, prods.length, orders.length);
+  document.getElementById('btn-load').disabled = false;
+}
+
+function checkStatus() {
+  const q=(loadKey('qc_recs')||[]).length;
+  const e=(loadKey('eq2_eqs')||[]).length;
+  const p=(loadKey('prod_recs')||[]).length;
+  const o=(loadKey('sd_orders')||[]).length;
   document.getElementById('log').textContent=`現在のデータ:\n  ① 品質管理：${q}件\n  ② 設備：${e}台\n  ③ 生産実績：${p}件\n  ④ 受注：${o}件`;
   showSummary(q,e,p,o);
 }
-function clearAll(){
+function clearAll() {
   if(!confirm('全データを削除しますか？'))return;
   ['qc_recs','eq2_eqs','eq2_hists','eq2_scheds','prod_recs','sd_orders'].forEach(k=>localStorage.removeItem(k));
-  ['st-qc','st-eq','st-prod','st-sd'].forEach(id=>{const el=document.getElementById(id);el.textContent='クリア済';el.style.background='var(--bg2)';el.style.color='var(--text2)';});
-  setProg(0);document.getElementById('log').textContent='全データをクリアしました。';
+  document.getElementById('log').textContent='全データをクリアしました。';
   document.getElementById('summary').style.display='none';
+  setProg(0);
 }
-function showSummary(q,e,p,o){document.getElementById('sm0').textContent=q;document.getElementById('sm1').textContent=e;document.getElementById('sm2').textContent=p;document.getElementById('sm3').textContent=o;document.getElementById('summary').style.display='grid';}
+function showSummary(q,e,p,o) {
+  document.getElementById('sm0').textContent=q;
+  document.getElementById('sm1').textContent=e;
+  document.getElementById('sm2').textContent=p;
+  document.getElementById('sm3').textContent=o;
+  document.getElementById('summary').style.display='grid';
+}
+
+// 初期化
+updatePreview();
+['qc-n','eq-n','prod-n','ord-n'].forEach(id=>document.getElementById(id).addEventListener('input', updatePreview));
 checkStatus();
 </script>
 </body>
