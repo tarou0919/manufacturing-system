@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>作業者スキルマップ | 製造管理</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+/* ── レベルバッジ ── */
+.lv-cell{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;cursor:pointer;transition:transform .12s;border:2px solid transparent;flex-shrink:0}
+.lv-cell:hover{transform:scale(1.18)}
+.lv0{background:var(--bg2);color:var(--text3);border-color:var(--border)}
+.lv1{background:#FAEEDA;color:#633806;border-color:#EF9F27}   /* 訓練中 */
+.lv2{background:#E6F1FB;color:#0C447C;border-color:#378ADD}   /* 一人可 */
+.lv3{background:#EAF3DE;color:#27500A;border-color:#639922}   /* 指導可 */
+
+/* ── マトリクス ── */
+.mx-table{border-collapse:collapse;font-size:12px}
+.mx-table th{font-size:11px;font-weight:500;color:var(--text2);padding:6px 8px;border:0.5px solid var(--border);background:var(--bg2);text-align:center;white-space:nowrap}
+.mx-table td{padding:6px 8px;border:0.5px solid var(--border);vertical-align:middle;text-align:center}
+.mx-table .name-cell{text-align:left;font-weight:500;font-size:12px;background:var(--bg2);white-space:nowrap;min-width:100px;cursor:pointer}
+.mx-table .name-cell:hover{background:var(--info-bg)}
+.proc-header{writing-mode:vertical-rl;height:84px;padding:6px 4px;min-width:48px}
+
+/* ── スキル選択ボタン（モーダル内） ── */
+.sk-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:var(--radius);border:1.5px solid var(--border);cursor:pointer;font-size:13px;transition:all .12s;background:var(--bg)}
+.sk-btn:hover{border-color:var(--border2)}
+.sk-btn.sel0{background:var(--bg2);border-color:var(--border2);color:var(--text2)}
+.sk-btn.sel1{background:#FAEEDA;border-color:#EF9F27;color:#633806}
+.sk-btn.sel2{background:#E6F1FB;border-color:#378ADD;color:#0C447C}
+.sk-btn.sel3{background:#EAF3DE;border-color:#639922;color:#27500A}
+
+/* ── モーダル ── */
+.modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:300;align-items:center;justify-content:center}
+.modal-ov.show{display:flex}
+.modal-box{background:var(--bg);border-radius:var(--radius-lg);padding:1.5rem;width:92%;max-width:520px;max-height:88vh;overflow-y:auto}
+
+/* ── レーダー ── */
+.radar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.radar-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem;text-align:center}
+
+/* ── カバレッジバー ── */
+.cov-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:3px}
+.cov-fill{height:100%;border-radius:3px}
+</style>
+</head>
+<body>
+<script src="js/nav.js"></script>
+<div class="page">
+
+<!-- KPI -->
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1rem">
+  <div class="stat"><div class="sv" id="k0">0</div><div class="sl">登録作業者数</div></div>
+  <div class="stat"><div class="sv" id="k1">0</div><div class="sl">登録工程数</div></div>
+  <div class="stat"><div class="sv" id="k2" style="color:var(--success)">0<span style="font-size:13px">%</span></div><div class="sl">多能工化率</div></div>
+  <div class="stat"><div class="sv" id="k3" style="color:var(--danger)">0</div><div class="sl">未習得セル数</div></div>
+</div>
+
+<!-- 凡例 -->
+<div class="card" style="padding:.75rem 1.25rem;margin-bottom:1rem">
+  <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+    <span style="font-size:12px;color:var(--text2);font-weight:500">評価基準：</span>
+    <span style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="lv-cell lv0" style="width:28px;height:28px;font-size:10px">−</span>未評価</span>
+    <span style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="lv-cell lv1" style="width:28px;height:28px;font-size:10px">訓</span>訓練中</span>
+    <span style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="lv-cell lv2" style="width:28px;height:28px;font-size:10px">可</span>一人で可</span>
+    <span style="display:flex;align-items:center;gap:6px;font-size:12px"><span class="lv-cell lv3" style="width:28px;height:28px;font-size:10px">導</span>指導可能</span>
+    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn" id="srt-name" onclick="setSort('name',this)" style="font-size:11px;padding:4px 10px">名前順</button>
+      <button class="btn" id="srt-cov"  onclick="setSort('cov',this)"  style="font-size:11px;padding:4px 10px">習得率順</button>
+      <button class="btn" id="srt-line" onclick="setSort('line',this)" style="font-size:11px;padding:4px 10px">ライン順</button>
+    </div>
+  </div>
+</div>
+
+<!-- タブ -->
+<div class="tabs">
+  <button class="tab active" onclick="stab('matrix',this)">スキルマトリクス</button>
+  <button class="tab" onclick="stab('radar',this)">レーダーチャート</button>
+  <button class="tab" onclick="stab('worker',this)">作業者登録</button>
+  <button class="tab" onclick="stab('process',this)">工程管理</button>
+</div>
+
+<!-- ① マトリクス -->
+<div id="panel-matrix" class="panel show">
+  <div class="card">
+    <div class="sec">スキルマトリクス
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <select id="fil-line" onchange="renderMatrix()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text)"><option value="">全ライン</option></select>
+        <input type="text" id="fil-q" placeholder="名前検索" oninput="renderMatrix()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);width:90px">
+        <button class="btn" onclick="exportCSV()" style="font-size:12px;padding:4px 10px">CSV出力 ↓</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto" id="matrix-wrap">
+      <div class="empty-hint">作業者と工程を登録してください。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ② レーダー -->
+<div id="panel-radar" class="panel">
+  <div class="card">
+    <div class="sec">レーダーチャート（作業者別）</div>
+    <div class="radar-grid" id="radar-wrap">
+      <div class="empty-hint">作業者と工程を登録してください。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ③ 作業者登録 -->
+<div id="panel-worker" class="panel">
+  <div class="card">
+    <div class="sec">作業者 登録</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="f"><label>氏名<span class="req">*</span></label><input type="text" id="w-name" placeholder="例：田中 太郎"></div>
+      <div class="f"><label>社員番号</label><input type="text" id="w-no" placeholder="例：EMP-001"></div>
+      <div class="f"><label>所属ライン</label><input type="text" id="w-line" placeholder="例：Aライン" list="line-dl"><datalist id="line-dl"></datalist></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="f"><label>入社日</label><input type="date" id="w-joined"></div>
+      <div class="f"><label>役職</label><input type="text" id="w-role" placeholder="例：リーダー"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-p" onclick="addWorker()">登録する</button>
+      <button class="btn" onclick="clearWForm()">クリア</button>
+      <button class="btn" onclick="genDemo()">デモデータを生成</button>
+    </div>
+    <div class="errmsg" id="w-err"></div>
+  </div>
+  <div class="card">
+    <div class="sec">作業者一覧</div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th style="width:120px">氏名</th><th style="width:88px">社員番号</th>
+          <th style="width:88px">ライン</th><th style="width:72px">役職</th>
+          <th style="width:80px">習得率</th><th style="width:80px">指導可</th><th style="width:60px">操作</th>
+        </tr></thead>
+        <tbody id="w-tbody"></tbody>
+      </table>
+      <div id="w-empty" class="empty-hint">作業者が登録されていません。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ④ 工程管理 -->
+<div id="panel-process" class="panel">
+  <div class="card">
+    <div class="sec">工程 登録</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="f"><label>工程名<span class="req">*</span></label><input type="text" id="p-name" placeholder="例：溶接工程"></div>
+      <div class="f"><label>工程コード</label><input type="text" id="p-code" placeholder="例：WLD-01"></div>
+      <div class="f"><label>カテゴリ</label>
+        <select id="p-cat"><option value="">選択</option><option>機械加工</option><option>組立</option><option>溶接</option><option>塗装</option><option>検査</option><option>搬送</option><option>その他</option></select>
+      </div>
+    </div>
+    <div class="f" style="margin-bottom:12px"><label>備考・難易度</label><input type="text" id="p-note" placeholder="注意事項など"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" onclick="addProcess()">登録する</button>
+      <button class="btn" onclick="clearPForm()">クリア</button>
+    </div>
+    <div class="errmsg" id="p-err"></div>
+  </div>
+  <div class="card">
+    <div class="sec">工程一覧</div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th style="width:140px">工程名</th><th style="width:88px">コード</th>
+          <th style="width:88px">カテゴリ</th><th style="width:72px">習得者数</th>
+          <th style="width:72px">指導可能</th><th style="width:56px">操作</th>
+        </tr></thead>
+        <tbody id="p-tbody"></tbody>
+      </table>
+      <div id="p-empty" class="empty-hint">工程が登録されていません。</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<!-- スキル編集モーダル -->
+<div class="modal-ov" id="sk-modal" onclick="closeModal(event)">
+  <div class="modal-box">
+    <div style="font-size:15px;font-weight:500;margin-bottom:4px" id="modal-title">スキル編集</div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px" id="modal-sub"></div>
+    <div id="modal-body"></div>
+    <div style="display:flex;gap:8px;margin-top:1.25rem">
+      <button class="btn btn-p" onclick="saveSkills()">保存する</button>
+      <button class="btn" onclick="document.getElementById('sk-modal').classList.remove('show')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/shared.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let workers  = loadKey('sm_workers')  || [];
+let procs    = loadKey('sm_procs')    || [];
+let skills   = loadKey('sm_skills')   || {};
+let sortMode = 'name';
+let editWid  = null;
+let rCharts  = {};
+
+const LV = [
+  {lbl:'未評価',  short:'−', bg:'var(--bg2)',   border:'var(--border)',    text:'var(--text3)'},
+  {lbl:'訓練中',  short:'訓', bg:'#FAEEDA',      border:'#EF9F27',          text:'#633806'},
+  {lbl:'一人で可',short:'可', bg:'#E6F1FB',      border:'#378ADD',          text:'#0C447C'},
+  {lbl:'指導可能',short:'導', bg:'#EAF3DE',      border:'#639922',          text:'#27500A'},
+];
+const LV_RADAR_COLOR = ['rgba(200,200,200,0.3)','rgba(239,159,39,0.4)','rgba(55,138,221,0.4)','rgba(99,153,34,0.4)'];
+const LV_RADAR_BORDER= ['#B4B2A9','#EF9F27','#378ADD','#639922'];
+
+function save(){ saveKey('sm_workers',workers); saveKey('sm_procs',procs); saveKey('sm_skills',skills); }
+
+// ── タブ ──────────────────────────────────────────────────────
+function stab(name, btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); btn.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('show'));
+  document.getElementById('panel-'+name).classList.add('show');
+  if(name==='radar')  renderRadar();
+  if(name==='worker') renderWorkerList();
+  if(name==='process')renderProcList();
+}
+
+function setSort(mode, btn){
+  sortMode=mode;
+  document.querySelectorAll('#srt-name,#srt-cov,#srt-line').forEach(b=>{b.style.background='';b.style.color='';b.style.borderColor='';});
+  btn.style.background='var(--info-bg)'; btn.style.color='var(--info)'; btn.style.borderColor='var(--info-border)';
+  renderMatrix();
+}
+
+// ── KPI ──────────────────────────────────────────────────────
+function coverage(w){ // 0〜1
+  if(!procs.length) return 0;
+  return procs.filter(p=>(skills[w.id]?.[p.id]||0)>=2).length / procs.length;
+}
+function updateKPI(){
+  const unrated = workers.reduce((a,w)=>a+procs.filter(p=>!(skills[w.id]?.[p.id])||skills[w.id][p.id]===0).length,0);
+  const multi = workers.length===0?0:Math.round(workers.filter(w=>coverage(w)>=0.5).length/workers.length*100);
+  document.getElementById('k0').textContent=workers.length;
+  document.getElementById('k1').textContent=procs.length;
+  document.getElementById('k2').innerHTML=multi+'<span style="font-size:13px">%</span>';
+  document.getElementById('k3').textContent=unrated;
+  updateLineFilter();
+}
+function updateLineFilter(){
+  const lines=[...new Set(workers.map(w=>w.line).filter(Boolean))];
+  const el=document.getElementById('fil-line'); const cur=el.value;
+  el.innerHTML='<option value="">全ライン</option>';
+  lines.forEach(l=>{const o=document.createElement('option');o.value=l;o.textContent=l;el.appendChild(o);}); el.value=cur;
+  const dl=document.getElementById('line-dl'); if(dl){dl.innerHTML='';lines.forEach(l=>{const o=document.createElement('option');o.value=l;dl.appendChild(o);});}
+}
+
+// ── ソート ───────────────────────────────────────────────────
+function sorted(){
+  const fl=document.getElementById('fil-line')?.value||'';
+  const fq=(document.getElementById('fil-q')?.value||'').toLowerCase();
+  let list=workers.filter(w=>(!fl||w.line===fl)&&(!fq||w.name.toLowerCase().includes(fq)));
+  if(sortMode==='cov')  list=[...list].sort((a,b)=>coverage(b)-coverage(a));
+  else if(sortMode==='line') list=[...list].sort((a,b)=>(a.line||'').localeCompare(b.line||''));
+  else list=[...list].sort((a,b)=>a.name.localeCompare(b.name));
+  return list;
+}
+
+// ── マトリクス ───────────────────────────────────────────────
+function renderMatrix(){
+  const wrap=document.getElementById('matrix-wrap');
+  const list=sorted();
+  if(!list.length||!procs.length){
+    wrap.innerHTML='<div class="empty-hint">作業者と工程を登録してください。セルをクリックしてスキルを評価できます。</div>'; updateKPI(); return;
+  }
+  let h=`<table class="mx-table"><thead><tr>
+    <th style="text-align:left;min-width:100px;background:var(--bg2)">作業者</th>
+    <th style="min-width:60px">ライン</th>`;
+  procs.forEach(p=>{ h+=`<th class="proc-header">${p.name}</th>`; });
+  h+=`<th style="min-width:80px">習得率</th></tr></thead><tbody>`;
+  list.forEach(w=>{
+    const cov=Math.round(coverage(w)*100);
+    const covColor=cov>=80?'var(--success)':cov>=50?'var(--info)':cov>=30?'var(--warn)':'var(--danger)';
+    h+=`<tr><td class="name-cell" onclick="openModal(${w.id})">${w.name}</td>
+      <td style="font-size:11px;color:var(--text2)">${w.line||'—'}</td>`;
+    procs.forEach(p=>{
+      const lv=skills[w.id]?.[p.id]||0;
+      h+=`<td style="cursor:pointer" onclick="openModal(${w.id})">
+        <div class="lv-cell lv${lv}" style="margin:0 auto">${LV[lv].short}</div>
+      </td>`;
+    });
+    h+=`<td>
+      <div style="font-size:12px;font-weight:500;color:${covColor};text-align:center">${cov}%</div>
+      <div class="cov-bar"><div class="cov-fill" style="width:${cov}%;background:${covColor}"></div></div>
+    </td></tr>`;
+  });
+  h+='</tbody></table>';
+  wrap.innerHTML=h; updateKPI();
+}
+
+// ── モーダル ─────────────────────────────────────────────────
+function openModal(wid){
+  editWid=wid;
+  const w=workers.find(x=>x.id===wid); if(!w) return;
+  document.getElementById('modal-title').textContent='スキル編集：'+w.name;
+  document.getElementById('modal-sub').textContent=(w.line||'')+(w.role?' / '+w.role:'');
+  let h='';
+  procs.forEach(p=>{
+    const lv=skills[wid]?.[p.id]||0;
+    h+=`<div style="margin-bottom:10px">
+      <div style="font-size:12px;font-weight:500;margin-bottom:6px">${p.name}${p.category?` <span style="font-size:10px;color:var(--text2)">${p.category}</span>`:''}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${LV.map((l,i)=>`<button class="sk-btn${lv===i?' sel'+i:''}" id="skb-${p.id}-${i}" onclick="setLv(${p.id},${i})">
+          <span class="lv-cell lv${i}" style="width:26px;height:26px;font-size:10px;pointer-events:none">${l.short}</span>
+          ${l.lbl}
+        </button>`).join('')}
+      </div>
+    </div>`;
+  });
+  document.getElementById('modal-body').innerHTML=h;
+  document.getElementById('sk-modal').classList.add('show');
+}
+function setLv(pid, lv){
+  if(!skills[editWid]) skills[editWid]={};
+  skills[editWid][pid]=lv;
+  LV.forEach((_,i)=>{
+    const b=document.getElementById(`skb-${pid}-${i}`);
+    if(b){ b.className='sk-btn'+(i===lv?' sel'+i:''); }
+  });
+}
+function saveSkills(){ save(); document.getElementById('sk-modal').classList.remove('show'); renderMatrix(); updateKPI(); }
+function closeModal(e){ if(e.target===document.getElementById('sk-modal')) document.getElementById('sk-modal').classList.remove('show'); }
+
+// ── レーダー ─────────────────────────────────────────────────
+function renderRadar(){
+  const wrap=document.getElementById('radar-wrap');
+  if(!workers.length||!procs.length){wrap.innerHTML='<div class="empty-hint">作業者と工程を登録してください。</div>';return;}
+  Object.values(rCharts).forEach(c=>{try{c.destroy();}catch(e){}});rCharts={};
+  const list=sorted();
+  const labels=procs.map(p=>p.name);
+  const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.07)';
+  const tc=isDark?'#a8a69e':'#73726c';
+
+  wrap.innerHTML=list.map(w=>{
+    const cov=Math.round(coverage(w)*100);
+    const cc=cov>=80?'var(--success)':cov>=50?'var(--info)':cov>=30?'var(--warn)':'var(--danger)';
+    const guided=procs.filter(p=>(skills[w.id]?.[p.id]||0)===3).length;
+    return `<div class="radar-card">
+      <div style="font-size:13px;font-weight:500">${w.name}</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:4px">${w.line||'—'}${w.role?' / '+w.role:''}</div>
+      <div style="font-size:11px;margin-bottom:8px">
+        習得率：<span style="color:${cc};font-weight:500">${cov}%</span>
+        　指導可：<span style="color:var(--success);font-weight:500">${guided}工程</span>
+      </div>
+      <canvas id="rc-${w.id}" style="max-height:180px"></canvas>
+    </div>`;
+  }).join('');
+
+  list.forEach(w=>{
+    const data=procs.map(p=>skills[w.id]?.[p.id]||0);
+    const ctx=document.getElementById('rc-'+w.id); if(!ctx) return;
+    rCharts[w.id]=new Chart(ctx,{
+      type:'radar',
+      data:{labels,datasets:[{
+        data,backgroundColor:'rgba(55,138,221,0.15)',borderColor:'#378ADD',
+        borderWidth:1.5,pointBackgroundColor:'#378ADD',pointRadius:3
+      }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{r:{min:0,max:3,ticks:{stepSize:1,color:tc,font:{size:10},backdropColor:'transparent',callback:v=>['','訓練中','一人可','指導可'][v]||''},grid:{color:gc},pointLabels:{color:tc,font:{size:10}},angleLines:{color:gc}}},
+        plugins:{legend:{display:false}}}
+    });
+  });
+}
+
+// ── 作業者登録 ───────────────────────────────────────────────
+function addWorker(){
+  const name=document.getElementById('w-name').value.trim();
+  if(!name){document.getElementById('w-err').textContent='氏名は必須です。';return;}
+  document.getElementById('w-err').textContent='';
+  workers.push({id:Date.now(),name,no:document.getElementById('w-no').value.trim(),line:document.getElementById('w-line').value.trim(),joined:document.getElementById('w-joined').value,role:document.getElementById('w-role').value.trim()});
+  save();renderWorkerList();updateKPI();renderMatrix();clearWForm();
+}
+function clearWForm(){['w-name','w-no','w-line','w-joined','w-role'].forEach(id=>document.getElementById(id).value='');document.getElementById('w-err').textContent='';}
+function renderWorkerList(){
+  const list=sorted();
+  document.getElementById('w-empty').style.display=list.length?'none':'block';
+  document.getElementById('w-tbody').innerHTML=list.map(w=>{
+    const cov=Math.round(coverage(w)*100);
+    const guided=procs.filter(p=>(skills[w.id]?.[p.id]||0)===3).length;
+    const cc=cov>=80?'var(--success)':cov>=50?'var(--info)':cov>=30?'var(--warn)':'var(--danger)';
+    return `<tr>
+      <td style="font-size:13px;font-weight:500">${w.name}</td>
+      <td style="font-size:11px">${w.no||'—'}</td>
+      <td style="font-size:11px">${w.line||'—'}</td>
+      <td style="font-size:11px">${w.role||'—'}</td>
+      <td><span style="font-weight:500;color:${cc}">${cov}%</span>
+        <div class="cov-bar"><div class="cov-fill" style="width:${cov}%;background:${cc}"></div></div></td>
+      <td style="text-align:center;color:var(--success)">${guided}工程</td>
+      <td style="display:flex;gap:4px">
+        <button class="exbtn" onclick="openModal(${w.id})">編集</button>
+        <button class="btn btn-d" style="font-size:10px;padding:2px 6px" onclick="delWorker(${w.id})">削除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+function delWorker(id){if(!confirm('削除しますか？'))return;workers=workers.filter(w=>w.id!==id);delete skills[id];save();renderWorkerList();renderMatrix();updateKPI();}
+
+// ── 工程管理 ─────────────────────────────────────────────────
+function addProcess(){
+  const name=document.getElementById('p-name').value.trim();
+  if(!name){document.getElementById('p-err').textContent='工程名は必須です。';return;}
+  document.getElementById('p-err').textContent='';
+  procs.push({id:Date.now(),name,code:document.getElementById('p-code').value.trim(),category:document.getElementById('p-cat').value,note:document.getElementById('p-note').value.trim()});
+  save();renderProcList();renderMatrix();updateKPI();clearPForm();
+}
+function clearPForm(){['p-name','p-code','p-note'].forEach(id=>document.getElementById(id).value='');document.getElementById('p-cat').value='';document.getElementById('p-err').textContent='';}
+function renderProcList(){
+  document.getElementById('p-empty').style.display=procs.length?'none':'block';
+  document.getElementById('p-tbody').innerHTML=procs.map(p=>{
+    const mastered=workers.filter(w=>(skills[w.id]?.[p.id]||0)>=2).length;
+    const guided  =workers.filter(w=>(skills[w.id]?.[p.id]||0)===3).length;
+    return `<tr>
+      <td style="font-size:13px;font-weight:500">${p.name}</td>
+      <td style="font-size:11px">${p.code||'—'}</td>
+      <td>${p.category?`<span class="badge b-blu" style="font-size:10px">${p.category}</span>`:'—'}</td>
+      <td style="text-align:center;color:${mastered<2?'var(--danger)':'var(--text)'}">${mastered}名</td>
+      <td style="text-align:center;color:var(--success)">${guided}名</td>
+      <td><button class="btn btn-d" style="font-size:10px;padding:2px 6px" onclick="delProc(${p.id})">削除</button></td>
+    </tr>`;
+  }).join('');
+}
+function delProc(id){if(!confirm('削除しますか？'))return;procs=procs.filter(p=>p.id!==id);Object.keys(skills).forEach(wid=>{if(skills[wid])delete skills[wid][id];});save();renderProcList();renderMatrix();updateKPI();}
+
+// ── デモデータ ────────────────────────────────────────────────
+function genDemo(){
+  if((workers.length||procs.length)&&!confirm('既存のデータを上書きしますか？'))return;
+  const now=Date.now();
+  const DW=[
+    {name:'田中 太郎',no:'EMP-001',line:'Aライン',joined:'2018-04-01',role:'リーダー'},
+    {name:'鈴木 花子',no:'EMP-002',line:'Aライン',joined:'2019-07-15',role:''},
+    {name:'佐藤 次郎',no:'EMP-003',line:'Bライン',joined:'2020-04-01',role:''},
+    {name:'山田 三郎',no:'EMP-004',line:'Bライン',joined:'2021-10-01',role:''},
+    {name:'中村 四子',no:'EMP-005',line:'Cライン',joined:'2022-04-01',role:''},
+    {name:'伊藤 五郎',no:'EMP-006',line:'Cライン',joined:'2022-10-01',role:''},
+    {name:'渡辺 六子',no:'EMP-007',line:'Aライン',joined:'2023-04-01',role:''},
+    {name:'小林 七夫',no:'EMP-008',line:'Bライン',joined:'2023-10-01',role:''},
+  ];
+  const DP=[
+    {name:'旋盤加工',  code:'MC-01', category:'機械加工'},
+    {name:'フライス加工',code:'MC-02',category:'機械加工'},
+    {name:'溶接',     code:'WLD-01',category:'溶接'},
+    {name:'組立',     code:'ASM-01',category:'組立'},
+    {name:'塗装',     code:'CTG-01',category:'塗装'},
+    {name:'品質検査',  code:'QC-01', category:'検査'},
+    {name:'設備点検',  code:'MNT-01',category:'その他'},
+  ];
+  // 0=未, 1=訓練中, 2=一人可, 3=指導可
+  const DS=[
+    [3,3,2,3,1,3,3], // 田中（ベテランリーダー）
+    [3,2,1,3,2,3,2], // 鈴木
+    [2,3,3,2,1,2,1], // 佐藤（溶接得意）
+    [1,2,2,3,1,2,1], // 山田
+    [2,1,0,2,3,3,1], // 中村
+    [1,1,1,2,2,1,1], // 伊藤（新人）
+    [1,1,0,2,1,1,0], // 渡辺（最新入社）
+    [1,0,1,1,0,1,1], // 小林（最新入社）
+  ];
+  workers=DW.map((w,i)=>({id:now+i,...w,note:''}));
+  procs  =DP.map((p,i)=>({id:now+100+i,...p,note:''}));
+  skills ={};
+  workers.forEach((w,wi)=>{
+    skills[w.id]={};
+    procs.forEach((p,pi)=>{ skills[w.id][p.id]=DS[wi][pi]; });
+  });
+  save(); renderWorkerList(); renderMatrix(); updateKPI();
+  alert('デモデータを生成しました！「スキルマトリクス」タブで確認してください。');
+}
+
+// ── CSV出力 ──────────────────────────────────────────────────
+function exportCSV(){
+  if(!workers.length||!procs.length){alert('データがありません');return;}
+  const LV_TEXT=['未評価','訓練中','一人で可','指導可能'];
+  const header=['氏名','社員番号','ライン','役職',...procs.map(p=>p.name),'習得率(%)','指導可工程数'];
+  const rows=sorted().map(w=>{
+    const lvs=procs.map(p=>LV_TEXT[skills[w.id]?.[p.id]||0]);
+    const cov=Math.round(coverage(w)*100);
+    const guided=procs.filter(p=>(skills[w.id]?.[p.id]||0)===3).length;
+    return [w.name,w.no,w.line,w.role,...lvs,cov,guided].map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',');
+  });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+[header.join(','),...rows].join('\n')],{type:'text/csv;charset=utf-8'}));
+  a.download=`スキルマップ_${tod()}.csv`; a.click();
+}
+
+// ── 初期化 ───────────────────────────────────────────────────
+renderMatrix();
+updateKPI();
+// デフォルトでソートボタンのスタイルを設定
+document.getElementById('srt-name').style.cssText='background:var(--info-bg);color:var(--info);border-color:var(--info-border)';
+</script>
+</body>
+</html>
